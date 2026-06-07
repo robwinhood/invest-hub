@@ -291,8 +291,9 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 ### 4. 캐시 — 추천 상품은 매번 새로 가져오지 않아도 된다
 
 ```
-해외 주식 → 실시간 → 캐시 없음   (ResilientAdapter 상속)
-추천 상품 → 저실시간 → 5분 캐시  (CachingResilientAdapter 상속)
+해외 주식 → 실시간 → 캐시 없음              (ResilientAdapter 상속)
+추천 상품 → 저실시간 → L1+L2 이중 캐시 5분   (CachingResilientAdapter 상속)
+            L1 = 로컬 Caffeine, L2 = 공유 Mock Redis (직렬화 저장)
 ```
 
 캐시 적용이 **코드 구조로 강제**된다. `CachingResilientAdapter`를 상속하면 캐시가 자동으로 붙는다. 깜빡할 수 없다.
@@ -329,7 +330,7 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 | **Resilience4j 2.4** | Spring 친화적인 내결함성 (CB·Bulkhead·TimeLimiter·RateLimiter) |
 | **헥사고날 아키텍처** | 외부 시스템 교체 시 핵심 로직 변경 최소화 |
 | **Kotlin Sealed Class** | Partial Success를 타입 안전하게 표현 |
-| **Caffeine Cache** | In-memory 캐시, JVM 최적화 |
+| **이중 캐시 (Caffeine + Mock Redis)** | L1 Caffeine(로컬·최속) + L2 Mock Redis(공유·직렬화). 실 환경은 포트 교체만으로 Redis 연동 |
 | **ArchUnit** | 아키텍처 규칙 + 코루틴 금지 + CB 누락을 코드로 검증 |
 | **Ktlint** | 코드 포맷·스타일 자동 강제 (Detekt는 GA 호환 버전 부재로 미채택) |
 | **Kotest + MockK** | Kotlin 친화적인 테스트 프레임워크 |
@@ -353,7 +354,7 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 
 ## 테스트 현황
 
-총 **102개 테스트**, 전체 통과.
+총 **110개 테스트**, 전체 통과.
 
 | 테스트 클래스 | 개수 | 무엇을 검증하나 |
 |---|---|---|
@@ -498,7 +499,7 @@ Redis 같은 영속 캐시에서 흔한 사고죠. 구 포맷 JSON과 새 클래
 
 **Q9. Pod가 10개인데 한 Pod에서 캐시를 비워도 나머지 9개는 그대로 아닌가요?**
 
-현재는 그렇습니다(로컬 Caffeine 캐시). 솔직하게 한계를 말씀드리면, 지금은 호출받은 Pod만 무효화됩니다. 다만 `CacheEventPublisher` 인터페이스를 미리 만들어 뒀습니다. 나중에 `RedisCacheEventPublisher` 하나만 추가하면 Redis Pub/Sub으로 전체 Pod가 동기화되고, 기존 코드는 한 줄도 안 바뀝니다(`@ConditionalOnMissingBean`으로 자동 전환). 확장 지점을 설계에 미리 뚫어 둔 것입니다.
+두 단계로 해결합니다. ① **L2(공유 Mock Redis)** 는 모든 Pod가 함께 보는 계층이라, 무효화 시 한 번만 비우면 전 Pod에 즉시 반영됩니다. ② 각 Pod의 **L1(로컬 Caffeine)** 은 `MockRedisCacheEventPublisher`가 발행하는 Pub/Sub 이벤트를 `L1EvictionSubscriber`가 받아 비웁니다. 즉 무효화 한 번에 L1·L2가 모두 정리됩니다. Redis는 지금 인메모리 Mock(`MockRedisStore`)으로 동작하며, 실 환경에선 `DistributedCacheStore` 포트의 Lettuce 구현만 끼우면 코어 코드는 한 줄도 안 바뀝니다.
 
 ---
 
@@ -524,7 +525,7 @@ Redis 같은 영속 캐시에서 흔한 사고죠. 구 포맷 JSON과 새 클래
 
 ### 🧪 검증 & 안전성
 
-**Q14. 테스트 102개가 다 의미 있는 건가요, 숫자 채우기는 아닌가요?**
+**Q14. 테스트 110개가 다 의미 있는 건가요, 숫자 채우기는 아닌가요?**
 
 레이어별로 책임이 다릅니다. 단위 테스트(서비스 로직·도메인 검증), 통합 성격 테스트(캐시 히트/미스, Executor 격리), HTTP 계층(MockMvc), 그리고 **아키텍처 테스트(ArchUnit)**가 있습니다. 특히 "제휴사가 죽어도 나머지는 SUCCESS"나 "필드 추가 시 캐시 키 자동 변경" 같은 핵심 시나리오가 테스트로 박혀 있어, 리팩터링 시 회귀를 잡아줍니다.
 

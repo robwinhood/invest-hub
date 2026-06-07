@@ -38,6 +38,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("com.github.ben-manes.caffeine:caffeine")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    // Jackson 3(tools.jackson) Kotlin 모듈 — L2(Mock Redis) 캐시 JSON 직렬화/역직렬화용.
+    // Spring Boot 4.0이 관리하는 jackson-bom 3.1.2(GA)에 포함되므로 버전 생략.
+    implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // Resilience4j — Spring Boot 4.x부터 resilience4j-spring-boot4 사용
