@@ -80,14 +80,26 @@
 
 ---
 
-#### `docs/project-summary.md` — 지금 읽고 있는 이 파일
+#### `docs/project-qna.md` — 지금 읽고 있는 이 파일
 
-**한 줄 설명**: 구현자와 리뷰어가 대화할 때 보는 정리 자료. 기술적인 내용을 쉽게 설명해둔 문서.
+**한 줄 설명**: 구현자와 리뷰어가 대화할 때 보는 정리 자료. 기술적인 내용을 쉽게 설명해두고, 설계 리뷰 Q&A 16문항을 담은 검토자 온보딩·질의응답 문서.
 
-**언제 여는가**: 설계 리뷰 자리에서 "이 프로젝트 설명해봐"라는 질문을 받았을 때.
+**언제 여는가**: 설계 리뷰 자리에서 "이 프로젝트 설명해봐"라는 질문을 받았을 때, 또는 처음 프로젝트를 접하며 의사결정 배경을 빠르게 파악할 때.
 
 ```
-위치: docs/project-summary.md
+위치: docs/project-qna.md
+```
+
+---
+
+#### `docs/architecture.md` — 아키텍처 & 설계 결정 상세
+
+**한 줄 설명**: 헥사고날 구조 전체 다이어그램 + 13개 설계 결정 상세 + 패키지 구조 + 테스트 목록 + 의존성 정책. README의 4대 핵심 답변을 뒷받침하는 깊이 있는 기술 레퍼런스.
+
+**언제 여는가**: "이 대책이 코드 어디에 어떻게 구현됐나", "패키지 구조가 어떻게 되나"를 확인할 때.
+
+```
+위치: docs/architecture.md
 ```
 
 ---
@@ -147,7 +159,7 @@
 
 #### `docs/adr/` 폴더 — 설계 결정 기록 (ADR)
 
-**한 줄 설명**: "왜 이런 구조로 만들었는가?"에 대한 공식 기록. 7개의 주요 결정이 각각 파일로 저장되어 있다.
+**한 줄 설명**: "왜 이런 구조로 만들었는가?"에 대한 공식 기록. 8개의 주요 결정이 각각 파일로 저장되어 있다.
 
 **언제 여는가**: "왜 코루틴을 안 쓰나?", "왜 캐시가 여기만 붙어있나?" 같은 질문을 받았을 때.
 
@@ -229,11 +241,12 @@
 새 기능 추가하고 싶을 때    docs/template/prd-datasource-template.md
 AI 사용법 모를 때           docs/ai/ai-dev-guide.md
 설계 결정 이유 궁금할 때    docs/adr/
+아키텍처·구조 상세 볼 때    docs/architecture.md
 PR 리뷰할 때                .github/pull_request_template.md (자동)
 배포 후 장애 추적           CHANGELOG.md
 AI가 이상하게 개발할 때     CLAUDE.md
 새 팀원 합류했을 때         HELP.md
-프로젝트 설계 설명할 때     docs/project-summary.md (이 파일)
+프로젝트 설계 설명할 때     docs/project-qna.md (이 파일)
 ```
 
 ---
@@ -358,21 +371,22 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 총 **129개 테스트**, 전체 통과.
 
 | 테스트 클래스 | 개수 | 무엇을 검증하나 |
-|---|---|---|
+|---|---:|---|
 | `InvestmentDashboardServiceTest` | 16 | 서비스 로직, 병렬 실행, 예외 분류, 도메인 검증 |
 | `CacheKeyVersionGeneratorTest` | 16 | 클래스 구조 해시, 필드 변경 감지, 순환참조 |
+| `TwoTierCacheTest` | 13 | L1+L2 이중 캐시·직렬화·이중 무효화·Pub/Sub |
+| `CacheInvalidationServiceTest` | 13 | 캐시 무효화·재갱신·이벤트 발행·예외 격리 |
 | `VirtualThreadIsolationTest` | 13 | 스레드 이름·격리·Virtual Thread·병렬성 |
-| `CacheInvalidationServiceTest` | 9 | 캐시 무효화·재갱신·이벤트 발행·예외 격리 |
-| `TwoTierCacheTest` | 8 | L1+L2 이중 캐시·직렬화·이중 무효화·Pub/Sub |
 | `InvestmentDashboardControllerTest` | 7 | 집계 HTTP 요청/응답, 헤더, 금액 계산 |
 | `InvestmentResourceControllerTest` | 7 | 도메인별 엔드포인트·속성별 Cache-Control·실패 상태(503/504/429) |
 | `HealthControllerTest` | 7 | Startup·Readiness·Liveness Probe |
 | `WarmupServiceTest` | 7 | 웜업 완료 상태·다중 Warmer·실패 허용 |
+| `CacheAdminControllerTest` | 6 | 캐시 목록·무효화·재갱신 REST |
 | `HexagonalArchitectureTest` | 6 | 아키텍처 경계 + CB 누락 + 코루틴 금지 자동 감지 |
-| `CacheAdminControllerTest` | 5 | 캐시 무효화·재갱신 REST |
 | `DashboardWarmerTest` | 5 | 대시보드 사전 호출·예외 허용 |
 | `StartupReadyTrackerTest` | 5 | probe gap 메트릭 (NaN sentinel) |
 | `CachingResilientAdapterTest` | 4 | 캐시 히트/미스, 독립 키 |
+| `LocalCacheSeederTest` | 2 | local 프로파일 추천 캐시 데모 시딩 |
 | `GlobalExceptionHandlerTest` | 1 | 에러 응답 형식 (RFC 7807) |
 | `InvestHubApplicationTests` | 1 | Spring 컨텍스트 정상 로드 |
 

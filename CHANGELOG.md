@@ -34,6 +34,12 @@
   - 의존성: `tools.jackson.module:jackson-module-kotlin` 추가 (Spring Boot 4 관리 jackson-bom 3.1.2, GA).
   - 테스트 `TwoTierCacheTest`(8) 추가 — 총 **110개**.
 
+### Changed
+- **문서 재구성 — 검토자 가독성 중심**. 거짓 정보 없이 실제 프로젝트 구성만 반영.
+  - `README.md`를 **과제 필수 답변 4항목**(① 잠재적 위험 분석 ② 아키텍처 의사결정·대책 ③ 성능·자원 최적화 ④ 신뢰성 검증 결과)에 집중하도록 재작성. 상세 설계 결정(13개)·헥사고날 다이어그램·패키지 구조·테스트 목록·의존성 정책 등 깊이 있는 내용은 **신규 `docs/architecture.md`** 로 이동하고 README에는 링크만 남김(중복 제거).
+  - `docs/project-summary.md` → **`docs/project-qna.md`** 로 이름 변경(검토자 온보딩 + 설계 리뷰 Q&A 역할 반영). README "📖 문서 안내" 섹션에서 링크.
+  - **테스트 수 표기 정합성 정정**: README·`project-qna.md`의 클래스별 개수를 실제 테스트 리포트 기준으로 동기화(`TwoTierCacheTest` 8→13, `CacheInvalidationServiceTest` 9→13, `CacheAdminControllerTest` 5→6, 누락돼 있던 `LocalCacheSeederTest`(2) 추가). 총합 **129개**는 동일하나 항목별 분배가 어긋나(합산 117) 있던 것을 바로잡음. `project-qna.md`의 ADR "7개" → 8개 정정.
+
 ### Fixed
 - **Cache Admin `refresh`가 evict만 하고 재갱신을 누락하던 문제 수정**.
   - 원인 ①(이름 비대칭): `GET /admin/cache`가 주는 versioned 이름(`recommendations:v7a0fe702`)을 `refresh` 경로에 붙여넣으면, evict는 `it == name || startsWith("$name:")`로 매칭돼 동작했지만 재갱신 전략 탐색은 `supports("recommendations")`(기본 이름)만 알아 **조용히 누락**됐다. → `CacheInvalidationService`가 전략 탐색·호출 시 항상 기본 이름으로 정규화(`baseNameOf`).
