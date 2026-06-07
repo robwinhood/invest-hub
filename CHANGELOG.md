@@ -8,6 +8,13 @@
 ## [Unreleased]
 
 ### Added
+- **하이브리드 API — 집계 엔드포인트 + 도메인별 리소스 엔드포인트** (ADR-008).
+  - 기존 `GET /dashboard`(집계, 첫 화면)는 유지하고 도메인 단독 엔드포인트 3종 추가: `GET /assets`, `GET /foreign-stocks`, `GET /recommendations`.
+  - **데이터 속성별 `Cache-Control`**: 자산 `private,max-age=30` / 주식 `no-store`(실시간) / 추천 `private,max-age=300`(L2 TTL 정렬) / 집계 `no-store`. → "데이터 속성별 최적화"를 내부 캐시뿐 아니라 HTTP 경계까지 확장.
+  - 도메인 단독 엔드포인트는 부분 실패를 **상태 코드**(503/504/429)로, 집계는 200+섹션 `status`로 표현(`SectionHttpStatus.kt`).
+  - 입력 유스케이스 3종(`GetAssetSummaryUseCase`·`GetForeignStockPortfolioUseCase`·`GetRecommendedProductsUseCase`) 추가, `InvestmentDashboardService`가 4개 유스케이스를 구현하며 **집계가 도메인 유스케이스를 병렬 재사용**(중복 제거).
+  - `ADR-008` 추가 — "단일 집계 API만으론 설계 제약(독립성·자원·속성별 최적화)과 충돌하는 이유"와 하이브리드 근거 명문화.
+  - 테스트 `InvestmentResourceControllerTest`(7) 추가 — 총 **117개**.
 - **이중 캐시 (L1 Caffeine + L2 Mock Redis) 도입** — 추천 상품 캐시를 2계층으로 전환.
   - `TwoTierCache` (`org.springframework.cache.Cache` 구현) — L1 hit→반환 / L1 miss·L2 hit→L1 승격 / 둘 다 miss→원본 호출 후 L1·L2 write-through. `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작.
   - `DistributedCacheStore` 포트 + `MockRedisStore` (인메모리 Mock Redis: KV + TTL + Pub/Sub). 외부 의존성 없이 Redis 모사(GA 정책상 embedded-redis 회피). 실 환경은 Lettuce 구현으로 포트만 교체.

@@ -52,7 +52,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew bootRun
 
 ```bash
 JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew test
-# 110개 테스트 전체 통과 확인
+# 117개 테스트 전체 통과 확인
 # 빌드 리포트: build/reports/tests/test/index.html
 ```
 
@@ -123,7 +123,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew fix-all
 
 ### (4) 신뢰성 검증 결과 — 최악 시나리오를 코드로 증명
 
-설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **110개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
+설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **117개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
 
 | 최악 시나리오 | 검증 내용 | 검증 테스트 |
 |---|---|---|
@@ -140,7 +140,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew fix-all
 ```
 $ ./gradlew check-all
 > Task :lintKotlin        # Ktlint 포맷 통과
-> Task :test              # Kotest + ArchUnit 110개 통과
+> Task :test              # Kotest + ArchUnit 117개 통과
 BUILD SUCCESSFUL
 ```
 
@@ -268,6 +268,29 @@ curl http://localhost:8080/actuator/circuitbreakers
 curl http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.calls
 ```
 
+### 도메인별 리소스 엔드포인트 (집계와 병행)
+
+집계(`/dashboard`)는 **첫 화면 1회 렌더**용이고, 도메인별 단독 조회·갱신·캐싱은 아래 리소스 엔드포인트가 담당한다. 데이터 속성에 맞는 `Cache-Control`이 적용되며, 한 도메인 장애가 다른 엔드포인트에 영향을 주지 않는다. (설계 근거: [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md))
+
+| 엔드포인트 | 도메인 | `Cache-Control` | 실패 시 상태 |
+|---|---|---|---|
+| `GET /api/v1/investment/dashboard` | 집계(첫 화면) | `no-store` | 200 + 섹션 `status=FAILURE` (Partial Success) |
+| `GET /api/v1/investment/assets` | 내 계좌/자산 | `private, max-age=30` | 503/504/429 |
+| `GET /api/v1/investment/foreign-stocks` | 해외 주식(실시간) | `no-store` | 503/504/429 |
+| `GET /api/v1/investment/recommendations` | 추천 상품(저실시간) | `private, max-age=300` | 503/504/429 |
+
+```bash
+# 해외 주식만 새로고침 (집계 재호출 없이 — 자원 절약)
+curl -i -H "X-User-Id: user-001" http://localhost:8080/api/v1/investment/foreign-stocks
+# → 200, 헤더 Cache-Control: no-store
+
+# 추천만 조회 (클라이언트 캐시 5분 — L2 TTL과 정렬)
+curl -i -H "X-User-Id: user-001" http://localhost:8080/api/v1/investment/recommendations
+# → 200, 헤더 Cache-Control: max-age=300, private
+```
+
+> 도메인 단독 엔드포인트는 실패를 **HTTP 상태 코드**로 표현한다(`CIRCUIT_OPEN/SERVICE_UNAVAILABLE→503`, `TIMEOUT→504`, `RESOURCE_EXHAUSTED→429`). 집계 엔드포인트만 부분 실패를 200+`status`로 표현한다(정상 섹션은 그대로 보여야 하므로).
+
 ### Cache Admin API — 운영 도구
 
 TTL 만료를 기다리지 않고 캐시를 즉시 무효화·재갱신한다. ML 모델 교체, 운영 데이터 긴급 수정 시 사용.
@@ -298,14 +321,18 @@ curl -X DELETE http://localhost:8080/admin/cache/recommendations
 ┌──────────────────────────────────────────────────────────┐
 │                   Driving Adapters (In)                   │
 │  web/      MdcFilter · RateLimiterFilter (필터)           │
-│            InvestmentDashboardController (대시보드 REST)   │
+│            InvestmentDashboardController (집계 REST)       │
+│            Asset·ForeignStock·Recommendation Controller   │
+│              (도메인별 리소스 REST + 속성별 Cache-Control) │
 │            CacheAdminController (캐시 무효화·재갱신 REST)  │
 │            HealthController (startup·ready·live Probe)    │
 │  lifecycle/ WarmupInvoker (ApplicationReadyEvent 수신)    │
 │             DashboardWarmer · StartupReadyTracker         │
 ├──────────────────────────────────────────────────────────┤
 │                    Application Core                       │
-│  Input Port  : GetInvestmentDashboardUseCase             │
+│  Input Ports : GetInvestmentDashboardUseCase (집계)       │
+│                GetAssetSummary·ForeignStockPortfolio·     │
+│                RecommendedProducts UseCase (도메인별)      │
 │  Domain      : InvestmentDashboard · Sealed Results      │
 │                require() 불변식 — 생성 시점 입력값 차단   │
 │  Service     : InvestmentDashboardService                │
@@ -559,16 +586,26 @@ CacheInvalidationService (오케스트레이터)
 
 금융 서비스에서 DB 연동은 필수이고 JDBC는 블로킹이다. Virtual Thread로 블로킹 코드를 그대로 유지하면서 높은 동시성을 얻는 것이 현실적이다.
 
+### 13. API 입자도 — 집계 + 도메인별 리소스 (왜 단일 엔드포인트만으론 부족한가)
+
+"단일 응답 스펙"을 **엔드포인트 1개로만** 제공하면 설계 제약(나)과 충돌한다:
+- 한 응답에 실시간(주식)·저실시간(추천)이 섞여 **캐시 정책이 가장 휘발성 높은 데이터 기준으로 강제**됨 → 추천에 `Cache-Control` 불가 (제약 3 위배).
+- "주식만 새로고침"이 자산·추천까지 재조회 → 자원 낭비 (제약 2 위배).
+- 세 도메인의 갱신·실패·캐싱 생명주기가 HTTP 경계에서 강제 결합 (제약 1 위배).
+
+그래서 **하이브리드**를 택했다: 집계(`/dashboard`)는 첫 화면 1회 렌더용으로 유지하고, 도메인별 단독 엔드포인트(`/assets`·`/foreign-stocks`·`/recommendations`)로 **독립 갱신 + 데이터 속성별 `Cache-Control`**을 제공한다. 내부에서만 하던 "데이터 속성별 처리 최적화"를 HTTP 경계까지 확장한 것이다. 과도 분할(집계 없이 도메인만)은 첫 화면 N회 호출로 모바일에 손해라 기각했다. 상세 근거·대안 비교: [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md).
+
 ---
 
 ## Test Coverage
 
 ```
-총 110개 테스트 — 전체 통과
+총 117개 테스트 — 전체 통과
 
 HexagonalArchitectureTest          (6)  아키텍처 경계 + CB 누락 방지 + 코루틴 금지 (ArchUnit)
 InvestmentDashboardServiceTest    (16)  서비스 정상·부분 실패·예외 분류·병렬 실행·도메인 검증
-InvestmentDashboardControllerTest  (7)  HTTP 계층, 헤더 검증, totalAsset 계산
+InvestmentDashboardControllerTest  (7)  집계 HTTP 계층, 헤더 검증, totalAsset 계산
+InvestmentResourceControllerTest   (7)  도메인별 엔드포인트·속성별 Cache-Control·실패 상태 매핑(503/504/429)
 GlobalExceptionHandlerTest         (1)  에러 응답 형식 (RFC 7807)
 CachingResilientAdapterTest        (4)  캐시 히트·미스·독립 키·결과 일관성
 TwoTierCacheTest                   (8)  L1+L2 저장/조회·직렬화 라운드트립·L1·L2 동시 무효화·Pub/Sub
@@ -600,10 +637,13 @@ src/main/kotlin/com/investhub/
 │   ├── product/InvestmentProduct.kt                # 추천 상품 도메인 모델 (require 검증)
 │   └── dashboard/InvestmentDashboard.kt            # Sealed Result 타입 + 집계 모델
 ├── application/
-│   ├── port/input/GetInvestmentDashboardUseCase.kt
+│   ├── port/input/
+│   │   ├── GetInvestmentDashboardUseCase.kt        # 집계 유스케이스
+│   │   └── Get{AssetSummary,ForeignStockPortfolio,RecommendedProducts}UseCase.kt  # 도메인별
 │   ├── port/output/
 │   │   ├── {Account,ForeignStock,Recommendation}Port.kt
-│   │   └── CacheEventPublisher.kt                  # 캐시 무효화 이벤트 발행 포트
+│   │   ├── CacheEventPublisher.kt                  # 캐시 무효화 이벤트 발행 포트
+│   │   └── DistributedCacheStore.kt               # L2(분산 Mock Redis) 포트
 │   └── service/
 │       ├── InvestmentDashboardService.kt           # 병렬 조회 + MDC 전파 + Partial Success
 │       ├── CacheInvalidationService.kt             # 캐시 무효화·재갱신 오케스트레이터
@@ -621,9 +661,13 @@ src/main/kotlin/com/investhub/
     │       │   ├── MdcFilter.kt                    # userId/requestId MDC 등록 · X-Request-Id
     │       │   └── RateLimiterFilter.kt            # 인스턴스당 15K TPS 상한 · 즉시 429
     │       ├── dto/InvestmentDashboardResponse.kt  # Sealed → JSON (SectionStatus enum)
+    │       ├── SectionHttpStatus.kt                # FailureReason → HTTP 상태(503/504/429) 매핑
     │       ├── GlobalExceptionHandler.kt           # RFC 7807 · 429 · 503 일관된 에러 응답
     │       ├── HealthController.kt                 # /health/startup · /ready · /live Probe
     │       ├── CacheAdminController.kt             # /admin/cache/** 무효화·재갱신 API
+    │       ├── AssetController.kt                  # GET /assets (private,max-age=30)
+    │       ├── ForeignStockController.kt           # GET /foreign-stocks (no-store, 실시간)
+    │       ├── RecommendationController.kt         # GET /recommendations (private,max-age=300)
     │       └── InvestmentDashboardController.kt
     └── out/
         ├── ResilientAdapter.kt                     # CB+Bulkhead+TL 템플릿 (실시간 어댑터용)
@@ -640,7 +684,7 @@ src/main/kotlin/com/investhub/
             └── RecommendationCacheRefreshStrategy.kt  # 추천 캐시 재갱신 전략
    (application/port/output/DistributedCacheStore.kt — L2 분산 캐시 포트)
 
-src/test/kotlin/com/investhub/  (총 110개 테스트)
+src/test/kotlin/com/investhub/  (총 117개 테스트)
 ├── architecture/HexagonalArchitectureTest.kt       # ArchUnit: 경계·CB 누락·코루틴 금지
 ├── config/
 │   ├── CacheKeyVersionGeneratorTest.kt             # 구조 해시·필드 변경 감지

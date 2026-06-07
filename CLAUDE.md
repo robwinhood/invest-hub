@@ -37,7 +37,7 @@
 ```bash
 export JAVA_HOME=~/.jdks/corretto-25/Contents/Home
 
-./gradlew test          # 테스트 (110개)
+./gradlew test          # 테스트 (117개)
 ./gradlew bootRun       # 로컬 서버 (포트 8080, 관리 8081)
 ./gradlew build         # 전체 빌드
 ./gradlew formatKotlin  # 코드 포맷 자동 수정
@@ -359,3 +359,4 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 - [ADR-005](docs/adr/005-single-module.md) — 단일 모듈 선택
 - [ADR-006](docs/adr/006-partial-success-sealed-class.md) — Partial Success 패턴
 - [ADR-007](docs/adr/007-cache-key-versioning-and-invalidation.md) — 캐시 키 자동 버전 + 무효화·재갱신
+- [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md) — 집계 + 도메인별 리소스 엔드포인트(하이브리드 API) + 속성별 Cache-Control
