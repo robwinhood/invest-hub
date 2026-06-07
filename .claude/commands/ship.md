@@ -87,9 +87,11 @@ git push -u origin "$(git branch --show-current)"
 ### ⑤ PR 생성
 
 `.github/pull_request_template.md` 구조에 맞춰 본문을 채운다. **"AI 자동 단계 완료 확인(①~④)"** 체크와 **"자가 검토 보고서"**(④ 결과)를 채운다.
+**Assignee는 `--assignee "@me"`로 현재 로그인된 계정을 자동 지정**한다(별도 지정이 없으면 항상 본인).
 
 ```bash
 gh pr create --base main --head "$(git branch --show-current)" \
+  --assignee "@me" \
   --title "<PR 제목>" \
   --body "<템플릿 채운 본문>"
 ```
