@@ -12,6 +12,9 @@
   - 응답을 `{ caches: [{ name, baseName, entryCount, keys }], count }` 형태로 확장 — 캐시 "이름(컨테이너)"과 그 안의 evict 가능한 "키(엔트리)"를 명확히 구분해, 버전 해시(`name`의 `:v…`)를 키로 오인하던 혼동을 해소.
   - `CacheKeyEnumerable` 포트 추가 + `TwoTierCache.keys()` 구현(L1·L2 합집합, L2 prefix 환원). `DistributedCacheStore`에 `keysByPrefix`(Redis `SCAN` 대응) 추가.
 - **로컬 구동 시 추천 캐시 자동 시딩** — `./gradlew bootRun`이 `local` 프로파일로 떠서 `LocalCacheSeeder`가 데모 사용자(`user-001`~`user-003`) 추천 캐시를 기동 직후 사전 적재한다. 기동 직후 바로 `GET /admin/cache`에서 evict 가능한 키를 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
+- **관리 포트 분리(8080/8081) 근거 문서화** — 동작 변경 없음(주석·문서만).
+  - `application.yml` — `server`/`management` 블록에 분리 이유 3가지(보안 격리·K8s 프로브 격리·리소스 격리)를 주석으로 명문화. 설정을 바꾸는 사람이 가장 먼저 보는 지점에 근거가 없던 누락 보완.
+  - `docs/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
 - **API 명세 문서 분리 + 서버리스 인터랙티브 탐색기**.
   - `docs/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
   - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages 게시 완료 — **https://robwinhood.github.io/invest-hub/api/** 에서 접근(소스: `main`/`docs`).

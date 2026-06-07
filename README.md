@@ -118,7 +118,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew fix-all
 | **캐시 히트 시 CB·Bulkhead·TL 미소모** | 저실시간 데이터의 자원 점유 최소화 | 추천 L1+L2 5분 TTL |
 | **L2(Mock Redis) 공유 캐시** | 신규 Pod·L1 만료 시에도 추천 엔진 원격 호출을 흡수 → 원본 부하·꼬리 레이턴시 감소 | L1 miss → L2 hit 시 원격 호출 0 |
 | **TimeLimiter 꼬리 레이턴시 상한** | 느린 호출이 SLA를 넘기지 못하도록 강제 | 계좌 2s / 제휴사 3s / 추천 1.5s |
-| **HTTP/2 · GZIP · Tomcat 튜닝 · 관리 포트 분리** | 커넥션 효율·페이로드 축소, 장애 중에도 8081에서 actuator 접근 | `max-connections 10K`, 관리 포트 **8081** |
+| **HTTP/2 · GZIP · Tomcat 튜닝 · 관리 포트 분리** | 커넥션 효율·페이로드 축소. 관리 포트 분리는 **보안 격리**(내부 상태 노출 actuator를 공개 포트에서 제외)·**프로브 격리**·장애 중 8081 접근을 모두 노린다 | `max-connections 10K`, 관리 포트 **8081** |
 | **Graceful Shutdown** | 배포·스케일인 시 진행 중 요청 보존 | `server.shutdown: graceful`, 30s |
 
 ### (4) 신뢰성 검증 결과 — 최악 시나리오를 코드로 증명
