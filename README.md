@@ -52,7 +52,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew bootRun
 
 ```bash
 JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew test
-# 117개 테스트 전체 통과 확인
+# 129개 테스트 전체 통과 확인
 # 빌드 리포트: build/reports/tests/test/index.html
 ```
 
@@ -123,7 +123,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew fix-all
 
 ### (4) 신뢰성 검증 결과 — 최악 시나리오를 코드로 증명
 
-설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **117개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
+설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **129개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
 
 | 최악 시나리오 | 검증 내용 | 검증 테스트 |
 |---|---|---|
@@ -140,7 +140,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew fix-all
 ```
 $ ./gradlew check-all
 > Task :lintKotlin        # Ktlint 포맷 통과
-> Task :test              # Kotest + ArchUnit 117개 통과
+> Task :test              # Kotest + ArchUnit 129개 통과
 BUILD SUCCESSFUL
 ```
 
@@ -446,7 +446,7 @@ CacheInvalidationService (오케스트레이터)
 ## Test Coverage
 
 ```
-총 117개 테스트 — 전체 통과
+총 129개 테스트 — 전체 통과
 
 HexagonalArchitectureTest          (6)  아키텍처 경계 + CB 누락 방지 + 코루틴 금지 (ArchUnit)
 InvestmentDashboardServiceTest    (16)  서비스 정상·부분 실패·예외 분류·병렬 실행·도메인 검증
@@ -530,7 +530,7 @@ src/main/kotlin/com/investhub/
             └── RecommendationCacheRefreshStrategy.kt  # 추천 캐시 재갱신 전략
    (application/port/output/DistributedCacheStore.kt — L2 분산 캐시 포트)
 
-src/test/kotlin/com/investhub/  (총 117개 테스트)
+src/test/kotlin/com/investhub/  (총 129개 테스트)
 ├── architecture/HexagonalArchitectureTest.kt       # ArchUnit: 경계·CB 누락·코루틴 금지
 ├── config/
 │   ├── CacheKeyVersionGeneratorTest.kt             # 구조 해시·필드 변경 감지

@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **Cache Admin: `GET /admin/cache`가 엔트리 키까지 노출**.
+  - 응답을 `{ caches: [{ name, baseName, entryCount, keys }], count }` 형태로 확장 — 캐시 "이름(컨테이너)"과 그 안의 evict 가능한 "키(엔트리)"를 명확히 구분해, 버전 해시(`name`의 `:v…`)를 키로 오인하던 혼동을 해소.
+  - `CacheKeyEnumerable` 포트 추가 + `TwoTierCache.keys()` 구현(L1·L2 합집합, L2 prefix 환원). `DistributedCacheStore`에 `keysByPrefix`(Redis `SCAN` 대응) 추가.
+- **로컬 구동 시 추천 캐시 자동 시딩** — `./gradlew bootRun`이 `local` 프로파일로 떠서 `LocalCacheSeeder`가 데모 사용자(`user-001`~`user-003`) 추천 캐시를 기동 직후 사전 적재한다. 기동 직후 바로 `GET /admin/cache`에서 evict 가능한 키를 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
 - **API 명세 문서 분리 + 서버리스 인터랙티브 탐색기**.
   - `docs/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
   - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages 게시 완료 — **https://robwinhood.github.io/invest-hub/api/** 에서 접근(소스: `main`/`docs`).
@@ -28,6 +32,7 @@
   - 테스트 `TwoTierCacheTest`(8) 추가 — 총 **110개**.
 
 ### Fixed
+- **Cache Admin `DELETE` 응답 정확도**: 특정 키 무효화 시 실제 제거 여부를 반영해 `status`를 `evicted`(실제 지움) 또는 `not_found`(원래 부재)로 구분. 이전에는 키가 없어도 무조건 `evicted`로 응답해, evict가 동작한 것처럼 보이던 오인을 유발. `Cache.evictIfPresent`/`DistributedCacheStore.evictIfPresent` 기반으로 L1·L2 양쪽의 실제 존재 여부를 판정.
 - PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
 - PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.

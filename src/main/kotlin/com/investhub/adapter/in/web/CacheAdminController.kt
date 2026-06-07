@@ -41,14 +41,19 @@ class CacheAdminController(
 ) {
     private val log = KotlinLogging.logger {}
 
-    /** 현재 등록된 모든 캐시 이름을 반환한다. */
+    /**
+     * 현재 등록된 모든 캐시를 **엔트리 키까지 포함**해 반환한다.
+     *
+     * 각 항목의 `name`은 캐시 이름(버전 해시 포함), `keys`는 그 안에 실제로 들어 있는
+     * evict 가능한 키 목록이다. (이름과 키를 분명히 구분해 오인을 방지한다.)
+     */
     @GetMapping
     fun listCaches(): ResponseEntity<Map<String, Any>> {
-        val names = cacheInvalidationService.listCacheNames()
+        val caches = cacheInvalidationService.listCaches()
         return ResponseEntity.ok(
             mapOf(
-                "caches" to names,
-                "count" to names.size,
+                "caches" to caches,
+                "count" to caches.size,
             ),
         )
     }
@@ -56,6 +61,9 @@ class CacheAdminController(
     /**
      * 특정 키의 캐시를 무효화한다.
      * 다음 요청이 들어올 때 데이터 소스에서 새로 조회한다.
+     *
+     * 응답 `status`: 실제로 지웠으면 `evicted`, 원래 그 키가 없었으면 `not_found`.
+     * (키를 잘못 넣어도 무조건 `evicted`로 보여 혼동을 주던 문제를 해소한다.)
      */
     @DeleteMapping("/{cacheName}/{key}")
     fun evict(
@@ -63,10 +71,10 @@ class CacheAdminController(
         @PathVariable key: String,
     ): ResponseEntity<Map<String, String>> {
         log.info { "[ADMIN] 캐시 무효화 요청: cache=$cacheName, key=$key" }
-        cacheInvalidationService.evict(cacheName, key)
+        val removed = cacheInvalidationService.evict(cacheName, key)
         return ResponseEntity.ok(
             mapOf(
-                "status" to "evicted",
+                "status" to if (removed) "evicted" else "not_found",
                 "cache" to cacheName,
                 "key" to key,
             ),

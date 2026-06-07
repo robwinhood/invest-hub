@@ -56,10 +56,26 @@ class MockRedisStore : DistributedCacheStore {
         if (store.remove(key) != null) log.debug { "[L2/MockRedis] evict — key=$key" }
     }
 
+    override fun evictIfPresent(key: String): Boolean {
+        val removed = store.remove(key)
+        // 보관돼 있었더라도 TTL이 이미 지났다면 사실상 부재로 간주한다.
+        val present = removed != null && System.currentTimeMillis() <= removed.expireAtMillis
+        if (present) log.debug { "[L2/MockRedis] evictIfPresent — key=$key (removed)" }
+        return present
+    }
+
     override fun evictByPrefix(prefix: String) {
         val removed = store.keys.filter { it.startsWith(prefix) }
         removed.forEach { store.remove(it) }
         if (removed.isNotEmpty()) log.debug { "[L2/MockRedis] evictByPrefix — prefix=$prefix, removed=${removed.size}" }
+    }
+
+    override fun keysByPrefix(prefix: String): Set<String> {
+        val now = System.currentTimeMillis()
+        return store
+            .filter { (key, entry) -> key.startsWith(prefix) && now <= entry.expireAtMillis }
+            .keys
+            .toSet()
     }
 
     override fun size(): Int = store.size

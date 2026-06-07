@@ -80,6 +80,13 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
+// 로컬 구동(./gradlew bootRun)은 'local' 프로파일로 띄운다.
+// → LocalCacheSeeder가 데모 사용자 추천 캐시를 사전 적재해, 기동 직후
+//   GET /admin/cache가 실제 evict 가능한 키를 보여준다.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    args("--spring.profiles.active=local")
+}
+
 // ──────────────────────────────────────────────────────────────
 // 코드 품질 태스크 (다중 개발자/AI 환경, 전부 GA 도구)
 //

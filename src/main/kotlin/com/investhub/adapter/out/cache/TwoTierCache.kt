@@ -1,10 +1,12 @@
 package com.investhub.adapter.out.cache
 
+import com.investhub.application.port.output.CacheKeyEnumerable
 import com.investhub.application.port.output.DistributedCacheStore
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.cache.Cache
 import org.springframework.cache.support.SimpleValueWrapper
 import java.util.concurrent.Callable
+import com.github.benmanes.caffeine.cache.Cache as CaffeineNativeCache
 
 /**
  * L1(로컬 Caffeine) + L2(분산 Mock Redis) 2계층 캐시.
@@ -33,7 +35,8 @@ class TwoTierCache(
     private val ttlSeconds: Long,
     private val serialize: (Any) -> ByteArray,
     private val deserialize: (ByteArray) -> Any,
-) : Cache {
+) : Cache,
+    CacheKeyEnumerable {
     private val log = KotlinLogging.logger {}
 
     override fun getName(): String = cacheName
@@ -104,6 +107,34 @@ class TwoTierCache(
         l1.evict(key)
         l2.evict(l2Key(key))
         log.debug { "[CACHE] evict(L1+L2) — cache=$cacheName, key=$key" }
+    }
+
+    /**
+     * L1·L2에서 키를 제거하고 **둘 중 어느 한쪽이라도 실제로 있었는지** 반환한다.
+     * 어드민 evict 응답이 "정말 지웠는지(evicted)" vs "원래 없었는지(not_found)"를
+     * 구분할 수 있도록 한다.
+     */
+    override fun evictIfPresent(key: Any): Boolean {
+        val l1Removed = l1.evictIfPresent(key)
+        val l2Removed = l2.evictIfPresent(l2Key(key))
+        log.debug { "[CACHE] evictIfPresent(L1+L2) — cache=$cacheName, key=$key, l1=$l1Removed, l2=$l2Removed" }
+        return l1Removed || l2Removed
+    }
+
+    /**
+     * 현재 보관된 엔트리 키를 L1·L2 합집합으로 반환한다.
+     * L2 키는 네임스페이스 prefix("$cacheName::")를 제거한 원래 키로 환원한다.
+     */
+    override fun keys(): Set<String> {
+        @Suppress("UNCHECKED_CAST")
+        val l1Keys =
+            (l1.nativeCache as CaffeineNativeCache<Any, Any>)
+                .asMap()
+                .keys
+                .map { it.toString() }
+        val l2Prefix = "$cacheName::"
+        val l2Keys = l2.keysByPrefix(l2Prefix).map { it.removePrefix(l2Prefix) }
+        return (l1Keys + l2Keys).toSet()
     }
 
     override fun clear() {
