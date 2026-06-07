@@ -26,7 +26,9 @@
        그 전에 window.fetch를 교체해 두어야 가로채기가 적용된다.
   -->
   <script>
-    const MOCK_HOST = "demo.invest-hub.local";
+    // openapi.yaml 의 servers[].url 호스트와 반드시 일치해야 한다 (이 값으로 fetch를 가로챈다).
+    // .invalid 는 RFC 2606 예약 TLD라 절대 resolve되지 않는다 → "직접 접속 불가"가 곧 안전장치.
+    const MOCK_HOST = "in-browser-mock.invalid";
 
     const ASSET = {
       status: "SUCCESS",
