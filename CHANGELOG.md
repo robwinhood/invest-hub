@@ -35,6 +35,10 @@
   - 테스트 `TwoTierCacheTest`(8) 추가 — 총 **110개**.
 
 ### Fixed
+- **Cache Admin `refresh`가 evict만 하고 재갱신을 누락하던 문제 수정**.
+  - 원인 ①(이름 비대칭): `GET /admin/cache`가 주는 versioned 이름(`recommendations:v7a0fe702`)을 `refresh` 경로에 붙여넣으면, evict는 `it == name || startsWith("$name:")`로 매칭돼 동작했지만 재갱신 전략 탐색은 `supports("recommendations")`(기본 이름)만 알아 **조용히 누락**됐다. → `CacheInvalidationService`가 전략 탐색·호출 시 항상 기본 이름으로 정규화(`baseNameOf`).
+  - 원인 ②(키 없는 전체 재갱신 no-op): 추천은 userId 단위 캐시라 `POST /admin/cache/{name}/refresh`(키 없음)는 무엇을 다시 불러올지 알 수 없어 재갱신이 사실상 동작하지 않았다. → `evictAllAndRefresh`가 **비우기 직전** `CacheKeyEnumerable.keys()`로 캐시돼 있던 userId들을 수집해, evict 후 키별로 재갱신("현재 캐시된 사용자 전체 재데움"). 빈 캐시는 전략의 `key=null` 재갱신에 위임(no-op), 일부 키 실패 시 나머지는 계속 진행.
+  - 회귀 테스트 3건 추가(`CacheInvalidationServiceTest`): versioned 이름 per-key refresh, versioned 이름 전체 재갱신의 키별 호출, 일부 키 실패 시 격리.
 - **Cache Admin `DELETE` 응답 정확도**: 특정 키 무효화 시 실제 제거 여부를 반영해 `status`를 `evicted`(실제 지움) 또는 `not_found`(원래 부재)로 구분. 이전에는 키가 없어도 무조건 `evicted`로 응답해, evict가 동작한 것처럼 보이던 오인을 유발. `Cache.evictIfPresent`/`DistributedCacheStore.evictIfPresent` 기반으로 L1·L2 양쪽의 실제 존재 여부를 판정.
 - PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
 - PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).

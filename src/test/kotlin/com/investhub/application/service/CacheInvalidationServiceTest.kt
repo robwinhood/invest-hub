@@ -35,6 +35,7 @@ class CacheInvalidationServiceTest : DescribeSpec() {
 
         fun buildTwoTierService(
             cacheName: String = "recommendations:vtest",
+            strategies: List<CacheRefreshStrategy> = emptyList(),
         ): Pair<CacheInvalidationService, TwoTierCache> {
             val cache =
                 TwoTierCache(
@@ -46,7 +47,7 @@ class CacheInvalidationServiceTest : DescribeSpec() {
                     deserialize = { mapper.readValue(it, List::class.java) },
                 )
             val manager = SimpleCacheManager().apply { setCaches(listOf(cache)) }.also { it.initializeCaches() }
-            return CacheInvalidationService(manager, emptyList(), emptyList()) to cache
+            return CacheInvalidationService(manager, emptyList(), strategies) to cache
         }
 
         describe("evict — 특정 키 무효화") {
@@ -151,6 +152,66 @@ class CacheInvalidationServiceTest : DescribeSpec() {
 
                 verify(exactly = 1) { targetStrategy.refresh(any(), any()) }
                 verify(exactly = 0) { otherStrategy.refresh(any(), any()) }
+            }
+
+            it("versioned 이름(recommendations:v…)으로 호출해도 base 이름으로 refresh 한다") {
+                // 어드민이 GET /admin/cache의 versioned 이름을 그대로 붙여넣는 경우.
+                // supports()는 base 이름만 알므로, 정규화 없이는 refresh가 조용히 누락됐었다(버그).
+                val strategy = mockk<CacheRefreshStrategy>()
+                every { strategy.supports("recommendations") } returns true
+                every { strategy.refresh(any(), any()) } returns Unit
+
+                val service = buildService(strategies = listOf(strategy))
+                service.evictAndRefresh("recommendations:v7a0fe702", "user-001")
+
+                verify(exactly = 1) { strategy.refresh("recommendations", "user-001") }
+            }
+        }
+
+        describe("evictAllAndRefresh — 전체 무효화 + 재갱신") {
+            it("versioned 이름 전체 재갱신 시, 비우기 직전 캐시된 키들을 각각 base 이름으로 refresh 한다") {
+                // POST /admin/cache/recommendations:v7a0fe702/refresh 시나리오 — evict는 되는데
+                // refresh가 안 되던 버그의 핵심 회귀 테스트.
+                val strategy = mockk<CacheRefreshStrategy>(relaxed = true)
+                every { strategy.supports("recommendations") } returns true
+
+                val (service, cache) = buildTwoTierService("recommendations:v7a0fe702", strategies = listOf(strategy))
+                cache.put("user-001", listOf("product-a"))
+                cache.put("user-002", listOf("product-b"))
+
+                service.evictAllAndRefresh("recommendations:v7a0fe702")
+
+                verify(exactly = 1) { strategy.refresh("recommendations", "user-001") }
+                verify(exactly = 1) { strategy.refresh("recommendations", "user-002") }
+                verify(exactly = 0) { strategy.refresh("recommendations", null) }
+                // 캐시는 실제로 비워졌다 (mock 전략은 재적재하지 않으므로 비어 있어야 함)
+                cache.get("user-001") shouldBe null
+            }
+
+            it("비어 있던 캐시의 전체 재갱신은 전략의 key=null 재갱신에 위임한다(데울 대상 없음)") {
+                val strategy = mockk<CacheRefreshStrategy>(relaxed = true)
+                every { strategy.supports("recommendations") } returns true
+
+                val (service, _) = buildTwoTierService("recommendations:v7a0fe702", strategies = listOf(strategy))
+
+                service.evictAllAndRefresh("recommendations:v7a0fe702")
+
+                verify(exactly = 1) { strategy.refresh("recommendations", null) }
+            }
+
+            it("한 키의 refresh가 실패해도 나머지 키는 계속 재갱신하고 예외를 던지지 않는다") {
+                val strategy = mockk<CacheRefreshStrategy>(relaxed = true)
+                every { strategy.supports("recommendations") } returns true
+                every { strategy.refresh("recommendations", "user-001") } throws RuntimeException("일시 실패")
+
+                val (service, cache) = buildTwoTierService("recommendations:v7a0fe702", strategies = listOf(strategy))
+                cache.put("user-001", listOf("product-a"))
+                cache.put("user-002", listOf("product-b"))
+
+                shouldNotThrow<Exception> {
+                    service.evictAllAndRefresh("recommendations:v7a0fe702")
+                }
+                verify(exactly = 1) { strategy.refresh("recommendations", "user-002") }
             }
         }
 
