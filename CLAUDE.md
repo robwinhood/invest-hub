@@ -267,7 +267,14 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 
 - `.github/workflows/ci.yml` — Lint Check → Build & Test 순서로 자동 실행
 - `.github/pull_request_template.md` — PR 생성 시 자동으로 리뷰 체크리스트 표시 (자가 검토 보고서 첨부)
-- 코드 변경 후 반드시 `CHANGELOG.md`에 항목을 추가한다
+- 코드 변경 후 반드시 `CHANGELOG.md`의 `[Unreleased]`에 항목을 추가한다
+
+### 버전 관리 = 완전 자동 (사람은 버전 번호를 손대지 않는다)
+- **버전의 단일 출처 로직**: `scripts/release.sh` (CHANGELOG `[Unreleased]` 성격으로 SemVer 자동 판정 → CHANGELOG 컷 + `build.gradle.kts` version 동기화 + `.release-version` 출력). 버전을 손으로 편집하지 말 것.
+- **완전 자동 CI**: `.github/workflows/release.yml` 이 **main 머지 시** 위 스크립트를 돌려 버전 컷·`chore(release): vX.Y.Z` 커밋·`vX.Y.Z` 태그를 무인 push 한다. `[Unreleased]`가 비어 있으면 아무 일도 안 한다. 봇 커밋은 `if: !startsWith(... 'chore(release):')`로 재트리거 루프를 막는다.
+- **수동 경로**: `/release` skill(`.claude/commands/release.md`) — 머지 전 미리 끊거나 버전을 강제/명시(`/release minor|major|1.0.0`)할 때. 같은 `scripts/release.sh`를 호출.
+- 판정 규칙(우선순위 Removed/breaking > Added > Fixed): `Added` → MINOR, `Fixed/Security`만 → PATCH, `Removed`/호환 깨짐 → MAJOR. 단 **0.x 단계에선 MAJOR도 MINOR로 흡수**(1.0.0은 명시할 때만).
+- ⚠️ release.yml이 main에 직접 push 하므로, main 브랜치 보호 규칙이 GitHub Actions의 push를 허용해야 한다(막혀 있으면 릴리즈 잡이 push 단계에서 실패).
 
 ## 에러 처리
 

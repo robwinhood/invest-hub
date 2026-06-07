@@ -8,6 +8,16 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [0.3.0] — 2026-06-07
+
+### Added
 - **추천 캐시 인프라 — 2계층 캐시(L1 Caffeine + L2 Mock Redis) + 자동 키 버전 + 분산 무효화·재갱신 + Admin API**.
   - **2계층 캐시** `TwoTierCache`(`org.springframework.cache.Cache` 구현): L1 hit→반환 / L1 miss·L2 hit→L1 승격 / 둘 다 miss→원본 호출 후 L1·L2 write-through. `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작.
   - **L2 추상화** `DistributedCacheStore` 포트 + `MockRedisStore`(인메모리 Mock Redis: KV + TTL + Pub/Sub, `keysByPrefix`=Redis `SCAN` 대응). 외부 의존성 없이 Redis 모사(GA 정책상 embedded-redis 회피), 실 환경은 Lettuce 구현으로 포트만 교체. L2는 Jackson 3로 **직렬화 저장**.
