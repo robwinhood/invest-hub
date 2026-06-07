@@ -12,11 +12,29 @@
 > 과제가 요구한 **세 가지 설계 항목**을, 이 프로젝트가 **어디서·무엇으로 충족했고 어떻게 코드로 증명했는지** 한 표로 매핑한다.
 > 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 코드 R1~R8)과 [ADR 문서](docs/adr/)로 이어진다.
 
-| 과제 요구사항 | 한 줄 답 | 핵심 메커니즘 | 코드로 증명 | 상세 |
-|---|---|---|---|---|
-| **① 서비스 독립성 확보**<br>특정 데이터 영역의 장애·지연이 전체 및 정상 도메인에 전파되지 않을 것 | 장애를 **섹션 단위로 격리** — 한 소스가 죽어도 나머지 섹션은 정상 응답한다 | 어댑터별 **전용 Virtual Thread Executor**(장애 풀 격리) + **CB→Bulkhead→TimeLimiter** 3단 차단 + **Partial Success(Sealed Result)** | `InvestmentDashboardServiceTest`(부분 실패), `VirtualThreadIsolationTest`(executor 격리) | (2) R1·R4 · [ADR-003](docs/adr/003-resilient-adapter-pattern.md)·[ADR-006](docs/adr/006-partial-success-sealed-class.md) |
-| **② 효율적인 리소스 통제**<br>불특정 다수의 대규모 요청에서 시스템 자원 효율을 극대화할 것 | 블로킹해도 **OS 스레드를 점유하지 않고**, 입구·동시성 **이중 상한**으로 폭주를 차단한다 | **Virtual Thread** + **Semaphore Bulkhead**(Little's Law로 산정) + **글로벌 RateLimiter**(15K TPS·`timeout 0ms` 즉시 429) | `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`(429/503), `VirtualThreadIsolationTest`(가상 스레드) | (3) R2 · [ADR-001](docs/adr/001-spring-mvc-over-webflux.md) |
-| **③ 데이터 속성별 처리 최적화**<br>도메인별 비즈니스 가치·실시간성에 맞는 가공·제어 방식 | 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 *구조로 강제*한다(누락 불가) | **`ResilientAdapter`**(실시간·캐시 배제) vs **`CachingResilientAdapter`**(저실시간·L1+L2 캐시 자동) + **속성별 `Cache-Control`** | `CachingResilientAdapterTest`(히트/미스), `TwoTierCacheTest`(L1+L2), `InvestmentResourceControllerTest`(속성별 Cache-Control) | (3) R3 · [ADR-004](docs/adr/004-caching-resilient-adapter.md)·[ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md) |
+### ① 서비스 독립성 확보
+> 특정 데이터 영역의 장애·지연이 전체 및 정상 도메인에 전파되지 않을 것
+
+- **한 줄 답** — 장애를 **섹션 단위로 격리**. 한 소스가 죽어도 나머지 섹션은 정상 응답한다.
+- **핵심 메커니즘** — 어댑터별 **전용 Virtual Thread Executor**(장애 풀 격리) + **CB→Bulkhead→TimeLimiter** 3단 차단 + **Partial Success(Sealed Result)**
+- **코드로 증명** — `InvestmentDashboardServiceTest`(부분 실패) · `VirtualThreadIsolationTest`(executor 격리)
+- **상세** — (2) R1·R4 · [ADR-003](docs/adr/003-resilient-adapter-pattern.md) · [ADR-006](docs/adr/006-partial-success-sealed-class.md)
+
+### ② 효율적인 리소스 통제
+> 불특정 다수의 대규모 요청에서 시스템 자원 효율을 극대화할 것
+
+- **한 줄 답** — 블로킹해도 **OS 스레드를 점유하지 않고**, 입구·동시성 **이중 상한**으로 폭주를 차단한다.
+- **핵심 메커니즘** — **Virtual Thread** + **Semaphore Bulkhead**(Little's Law로 산정) + **글로벌 RateLimiter**(15K TPS·`timeout 0ms` 즉시 429)
+- **코드로 증명** — `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`(429/503) · `VirtualThreadIsolationTest`(가상 스레드)
+- **상세** — (3) R2 · [ADR-001](docs/adr/001-spring-mvc-over-webflux.md)
+
+### ③ 데이터 속성별 처리 최적화
+> 도메인별 비즈니스 가치·실시간성에 맞는 가공·제어 방식
+
+- **한 줄 답** — 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 *구조로 강제*한다(누락 불가).
+- **핵심 메커니즘** — **`ResilientAdapter`**(실시간·캐시 배제) vs **`CachingResilientAdapter`**(저실시간·L1+L2 캐시 자동) + **속성별 `Cache-Control`**
+- **코드로 증명** — `CachingResilientAdapterTest`(히트/미스) · `TwoTierCacheTest`(L1+L2) · `InvestmentResourceControllerTest`(속성별 Cache-Control)
+- **상세** — (3) R3 · [ADR-004](docs/adr/004-caching-resilient-adapter.md) · [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md)
 
 > 세 항목 모두 **"런타임 점검"이 아니라 "컴파일·빌드 시점의 구조적 강제"** 로 보장한다는 것이 이 설계의 일관된 원칙이다(R8 — ArchUnit이 CB 누락·레이어 위반을 빌드에서 차단). 전체 검증 결과는 아래 [(4) 신뢰성 검증 결과](#4-신뢰성-검증-결과--최악-시나리오를-코드로-증명) 참고.
 
@@ -46,16 +64,45 @@
 
 각 리스크를 **구조(타입·아키텍처) 수준에서 차단**하는 것을 원칙으로 했다. 런타임 점검이 아니라 컴파일·빌드 시점에 막아야 휴먼/AI 에러가 끼어들 여지가 없기 때문이다.
 
-| 리스크 | 도입한 대책 | 왜 이렇게 설계했나 | 위치 |
-|---|---|---|---|
-| **R1** | **Circuit Breaker → Bulkhead → TimeLimiter** 3단 데코레이션 + **어댑터별 전용 Virtual Thread Executor** + **Partial Success(Sealed Result)** | CB가 OPEN이면 하위 자원을 아예 소모하지 않도록 순서를 고정. 제휴사 지연이 `partner-vt-*` 풀에 갇혀 `account-vt-*`에 닿지 못하게 격리. 제휴사가 죽어도 해당 섹션만 `FAILURE`. | `ResilientAdapter`, `VirtualThreadConfig`, `InvestmentDashboard` · [ADR-003](docs/adr/003-resilient-adapter-pattern.md)/[006](docs/adr/006-partial-success-sealed-class.md) |
-| **R2** | **Virtual Thread**(블로킹해도 OS 스레드 비점유) + **Semaphore Bulkhead**(동시성 상한, 대기 큐 0ms 즉시 거부) + **글로벌 RateLimiter**(입구 차단) | Thread-Pool Bulkhead는 가상 스레드 환경에서 무의미 → Semaphore로 동시 *호출 수*만 제어. 버스트는 큐에 쌓지 않고 즉시 429로 떨궈 GC 압박·메모리 폭증 방지. | `RateLimiterFilter`, `application.yml` |
-| **R3** | **`ResilientAdapter`(실시간·캐시 없음)** vs **`CachingResilientAdapter`(저실시간·캐시 구조적 보장)** 의 **타입 수준 분리** | "해외 주식은 절대 캐시하면 안 된다"는 정책을 주석이 아니라 **상속하는 부모 클래스**로 강제. 캐시 추가/누락을 개발자 판단에 맡기지 않는다. | `ResilientAdapter`, `CachingResilientAdapter` · [ADR-004](docs/adr/004-caching-resilient-adapter.md) |
-| **R4** | **Kotlin Sealed Class Result + `SectionStatus` enum** | 섹션별 성공/실패를 타입으로 표현해 "전체 실패" 자체가 코드상 불가능. 문자열 status 하드코딩 오타는 컴파일 타임 차단. | `InvestmentDashboard`, `InvestmentDashboardResponse` · [ADR-006](docs/adr/006-partial-success-sealed-class.md) |
-| **R5** | **`WarmupService`** + **Startup/Readiness Probe 분리** + **`StartupReadyTracker` gap 메트릭** | 기동 시 대시보드를 사전 호출해 JIT·캐시·CB 윈도우를 데움. 웜업 완료 전 `/health/startup`이 503 → K8s가 준비된 Pod에만 트래픽 전달. | `WarmupService`, `HealthController`, `StartupReadyTracker` |
-| **R6** | **`CacheInvalidationService` + `/admin/cache/**` + `evictAndRefresh`** | TTL을 기다리지 않고 즉시 무효화/재갱신. 재갱신은 비운 직후 능동 호출로 채워 사용자 캐시 미스 0. | `CacheInvalidationService`, `CacheAdminController` · [ADR-007](docs/adr/007-cache-key-versioning-and-invalidation.md) |
-| **R7** | **MDC(requestId·userId) 전 레이어 전파** + **어댑터별 스레드 명명** + **Actuator/Micrometer** | 가상 스레드는 ThreadLocal을 상속하지 않으므로 `supplyAsyncWithMdc()`로 명시 전파. 스레드 이름(`partner-vt-N`)만으로 장애 소스 즉시 식별. | `MdcFilter`, `InvestmentDashboardService`, `VirtualThreadConfig` |
-| **R8** | **ArchUnit 규칙**(레이어 경계·포트 인터페이스·순환 금지·**CB 누락 차단**·코루틴 금지) + **`CacheKeyVersionGenerator`** + **`configs.default` 안전망** | 외부 어댑터가 `ResilientAdapter`를 상속하지 않으면 **빌드 실패**. 캐시 대상 클래스 구조가 바뀌면 키 해시 자동 변경. 새 어댑터가 `portName`만 선언해도 기본 CB가 적용. | `HexagonalArchitectureTest`, `CacheKeyVersionGenerator` |
+**R1 · 연쇄 장애**
+- **대책** — **CB → Bulkhead → TimeLimiter** 3단 데코레이션 + **어댑터별 전용 Virtual Thread Executor** + **Partial Success(Sealed Result)**
+- **왜** — CB가 OPEN이면 하위 자원을 아예 소모하지 않도록 순서를 고정. 제휴사 지연이 `partner-vt-*` 풀에 갇혀 `account-vt-*`에 닿지 못하게 격리. 제휴사가 죽어도 해당 섹션만 `FAILURE`.
+- **위치** — `ResilientAdapter`, `VirtualThreadConfig`, `InvestmentDashboard` · [ADR-003](docs/adr/003-resilient-adapter-pattern.md) / [ADR-006](docs/adr/006-partial-success-sealed-class.md)
+
+**R2 · 자원 고갈**
+- **대책** — **Virtual Thread**(블로킹해도 OS 스레드 비점유) + **Semaphore Bulkhead**(동시성 상한, 대기 큐 0ms 즉시 거부) + **글로벌 RateLimiter**(입구 차단)
+- **왜** — Thread-Pool Bulkhead는 가상 스레드 환경에서 무의미 → Semaphore로 동시 *호출 수*만 제어. 버스트는 큐에 쌓지 않고 즉시 429로 떨궈 GC 압박·메모리 폭증 방지.
+- **위치** — `RateLimiterFilter`, `application.yml`
+
+**R3 · 데이터 신선도/일관성 충돌**
+- **대책** — **`ResilientAdapter`(실시간·캐시 없음)** vs **`CachingResilientAdapter`(저실시간·캐시 구조적 보장)** 의 **타입 수준 분리**
+- **왜** — "해외 주식은 절대 캐시하면 안 된다"는 정책을 주석이 아니라 **상속하는 부모 클래스**로 강제. 캐시 추가/누락을 개발자 판단에 맡기지 않는다.
+- **위치** — `ResilientAdapter`, `CachingResilientAdapter` · [ADR-004](docs/adr/004-caching-resilient-adapter.md)
+
+**R4 · All-or-Nothing 응답**
+- **대책** — **Kotlin Sealed Class Result + `SectionStatus` enum**
+- **왜** — 섹션별 성공/실패를 타입으로 표현해 "전체 실패" 자체가 코드상 불가능. 문자열 status 하드코딩 오타는 컴파일 타임 차단.
+- **위치** — `InvestmentDashboard`, `InvestmentDashboardResponse` · [ADR-006](docs/adr/006-partial-success-sealed-class.md)
+
+**R5 · Cold Start / 배포 중 품질 저하**
+- **대책** — **`WarmupService`** + **Startup/Readiness Probe 분리** + **`StartupReadyTracker` gap 메트릭**
+- **왜** — 기동 시 대시보드를 사전 호출해 JIT·캐시·CB 윈도우를 데움. 웜업 완료 전 `/health/startup`이 503 → K8s가 준비된 Pod에만 트래픽 전달.
+- **위치** — `WarmupService`, `HealthController`, `StartupReadyTracker`
+
+**R6 · 운영 중 긴급 정정 불가**
+- **대책** — **`CacheInvalidationService` + `/admin/cache/**` + `evictAndRefresh`**
+- **왜** — TTL을 기다리지 않고 즉시 무효화/재갱신. 재갱신은 비운 직후 능동 호출로 채워 사용자 캐시 미스 0.
+- **위치** — `CacheInvalidationService`, `CacheAdminController` · [ADR-007](docs/adr/007-cache-key-versioning-and-invalidation.md)
+
+**R7 · 관측성 부재**
+- **대책** — **MDC(requestId·userId) 전 레이어 전파** + **어댑터별 스레드 명명** + **Actuator/Micrometer**
+- **왜** — 가상 스레드는 ThreadLocal을 상속하지 않으므로 `supplyAsyncWithMdc()`로 명시 전파. 스레드 이름(`partner-vt-N`)만으로 장애 소스 즉시 식별.
+- **위치** — `MdcFilter`, `InvestmentDashboardService`, `VirtualThreadConfig`
+
+**R8 · 점진적 구조 붕괴 (휴먼/AI 에러)**
+- **대책** — **ArchUnit 규칙**(레이어 경계·포트 인터페이스·순환 금지·**CB 누락 차단**·코루틴 금지) + **`CacheKeyVersionGenerator`** + **`configs.default` 안전망**
+- **왜** — 외부 어댑터가 `ResilientAdapter`를 상속하지 않으면 **빌드 실패**. 캐시 대상 클래스 구조가 바뀌면 키 해시 자동 변경. 새 어댑터가 `portName`만 선언해도 기본 CB가 적용.
+- **위치** — `HexagonalArchitectureTest`, `CacheKeyVersionGenerator`
 
 > 각 대책의 결정 배경 → [ADR 문서](docs/adr/) · 구조 다이어그램·패키지 위치 → [docs/project-qna.md (코드 구조 §5)](docs/project-qna.md#5-코드-구조--헥사고날-아키텍처)
 
