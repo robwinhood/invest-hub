@@ -84,9 +84,10 @@
 **무엇을**: AI가 만든 결과물을 사람이 검토하고 머지를 결정한다.
 
 **어떻게**:
-1. PR을 생성하면 `.github/pull_request_template.md` 체크리스트가 표시된다.
+1. AI가 `/ship`을 실행하면 ④ 자가검토 → `check-all` → 커밋 → 푸시 → **PR 생성**까지 자동으로 끝난다. PR에는 `.github/pull_request_template.md` 체크리스트와 자가 검토 보고서가 채워져 있다.
 2. CI(`.github/workflows/ci.yml`)가 자동으로 `lintKotlin + test`를 돌린다. 실패 시 머지 불가.
 3. 사람은 **④단계 자가 검토 보고서의 "의도적으로 남긴 항목"** 과 비즈니스 타당성에만 집중한다.
+4. 승인 후 머지한다. ("머지까지 해줘"라고 지시하면 `/ship`이 CI 통과를 확인하고 자동 머지한다 — 이때도 ②~③의 판단은 사람이 사전에 끝낸 상태여야 한다.)
 
 **산출물**: 승인 → 머지 → 배포
 
@@ -102,6 +103,7 @@
 | ④ 검토 | `.claude/commands/self-review.md` | 비판적 자가 검토 skill |
 | ④ 검토 | ArchUnit | 아키텍처·코루틴 금지·CB 누락 자동 차단 |
 | ④ 검토 | Ktlint | 포맷·스타일 자동 강제 |
+| ④~⑤ | `.claude/commands/ship.md` (`/ship`) | 자가검토→check-all→커밋→푸시→PR 생성 한 번에 |
 | ⑤ 리뷰 | `.github/pull_request_template.md` | 리뷰 체크리스트 |
 | ⑤ 리뷰 | `.github/workflows/ci.yml` | CI 자동 검증 (머지 게이트) |
 
