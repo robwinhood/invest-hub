@@ -60,7 +60,7 @@
 
 ### (4) 신뢰성 검증 결과 — 최악 시나리오를 코드로 증명
 
-설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **129개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
+설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **133개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
 
 | 최악 시나리오 | 검증 내용 | 검증 테스트 |
 |---|---|---|
@@ -77,7 +77,7 @@
 ```
 $ ./gradlew check-all
 > Task :lintKotlin        # Ktlint 포맷 통과
-> Task :test              # Kotest + ArchUnit 129개 통과
+> Task :test              # Kotest + ArchUnit 133개 통과
 BUILD SUCCESSFUL
 ```
 
@@ -113,7 +113,7 @@ BUILD SUCCESSFUL
 export JAVA_HOME=~/.jdks/corretto-25/Contents/Home   # Amazon Corretto 25 (또는 OpenJDK 25+)
 
 ./gradlew bootRun     # 로컬 서버 — API: http://localhost:8080, 관리: 8081
-./gradlew test        # 129개 테스트 (리포트: build/reports/tests/test/index.html)
+./gradlew test        # 133개 테스트 (리포트: build/reports/tests/test/index.html)
 ./gradlew check-all   # PR 전 전체 검증: lintKotlin → test (파일 수정 없음)
 ./gradlew fix-all     # formatKotlin → test (포맷 자동 수정 — 커밋 전 사용)
 ```

@@ -64,7 +64,7 @@
 | 실시간성 | 높음 | 매우 높음 | 낮음 (수십 분 단위) |
 | 장애 영향도 | 높음 (핵심 자산) | 중간 | 낮음 (참고 정보) |
 | CB 실패율 임계 | 50% | **40%** (엄격) | **60%** (관대) |
-| Bulkhead 한도 | 100 | **50** (엄격) | 80 |
+| Bulkhead 한도 | 1000 | **4000** (트래픽↑) | 2000 |
 | TimeLimiter | 2s | **3s** (외부 여유) | 1.5s |
 | 캐시 | 없음 | 없음 (실시간 필수) | **L1 Caffeine + L2 Mock Redis 5분 TTL** |
 
@@ -357,14 +357,14 @@ src/main/kotlin/com/investhub/
 
 ## 4. Test Coverage
 
-총 **129개 테스트 — 전체 통과** (`./gradlew check-all` → `BUILD SUCCESSFUL`).
+총 **133개 테스트 — 전체 통과** (`./gradlew check-all` → `BUILD SUCCESSFUL`).
 
 | 테스트 클래스 | 개수 | 무엇을 검증하나 |
 |---|---:|---|
 | `InvestmentDashboardServiceTest` | 16 | 서비스 정상·부분 실패·예외 분류·병렬 실행·도메인 검증 |
 | `CacheKeyVersionGeneratorTest` | 16 | 클래스 구조 해시·필드 변경 감지·순환참조·캐싱 |
 | `TwoTierCacheTest` | 13 | L1+L2 저장/조회·직렬화 라운드트립·L1·L2 동시 무효화·Pub/Sub |
-| `CacheInvalidationServiceTest` | 13 | 무효화·재갱신·이벤트 발행·전략 선택·예외 격리 |
+| `CacheInvalidationServiceTest` | 17 | 무효화·재갱신·이벤트 발행·전략 선택·versioned 이름 정규화·예외 격리 |
 | `VirtualThreadIsolationTest` | 13 | 어댑터별 Executor 격리·스레드 명명·Virtual Thread·병렬성 |
 | `CacheAdminControllerTest` | 6 | 캐시 목록·무효화·재갱신 REST 엔드포인트 |
 | `HexagonalArchitectureTest` | 6 | 아키텍처 경계 + CB 누락 방지 + 코루틴 금지 (ArchUnit) |
@@ -378,7 +378,7 @@ src/main/kotlin/com/investhub/
 | `LocalCacheSeederTest` | 2 | local 프로파일 추천 캐시 데모 시딩 |
 | `GlobalExceptionHandlerTest` | 1 | 에러 응답 형식 (RFC 7807) |
 | `InvestHubApplicationTests` | 1 | Spring 컨텍스트 로드 |
-| **합계** | **129** | |
+| **합계** | **133** | |
 
 ---
 
