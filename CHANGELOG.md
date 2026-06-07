@@ -24,6 +24,7 @@
   - `.claude/commands/self-review.md` — 비판적 자가 검토 skill (④단계)
   - `/add-datasource` skill에 ④ 자가 검토 단계 통합
   - PR 템플릿에 "AI 자동 단계 완료 + 자가 검토 보고서" 섹션 추가
+- `/ship` skill (`.claude/commands/ship.md`) — 워크플로우 ④~⑤ 자동화. `self-review` → `check-all` → commit → push → `gh pr create`를 한 번에 오케스트레이션해 PR 생성까지 무인 수행(머지는 기본 사람 몫). 보호 브랜치·`gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
 - 캐시 자동 키 버전 관리 (`CacheKeyVersionGenerator`)
   - 클래스 구조(필드명+타입) SHA-256 해시를 캐시 이름에 자동 삽입
   - `InvestmentProduct` 필드 변경 시 캐시 이름 자동 교체 — 사람이 버전 올릴 필요 없음
