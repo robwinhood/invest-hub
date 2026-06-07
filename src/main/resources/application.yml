@@ -5,6 +5,16 @@ spring:
     virtual:
       enabled: true
 
+# ──────────────────────────────────────────────
+# 네트워크 평면 분리: 8080(대고객 API) vs 8081(운영/관측, 아래 management)
+# - 보안: actuator는 CircuitBreaker·Bulkhead 상태, health 상세 등 내부 상태를 노출한다.
+#   이를 공개 포트(8080)에 두지 않고 분리하면 Ingress/Security Group에서 8081을
+#   내부망·모니터링 시스템에만 열 수 있다(앱 레벨 시큐리티로 /actuator를 막는 것보다 단순·견고).
+# - 프로브 격리: K8s liveness/readiness가 8081로 가므로, 8080이 트래픽 폭주로 느려져도
+#   프로브가 경쟁/실패하지 않는다("과부하인데 프로브 실패로 Pod가 죽는" 상황 방지).
+# - 리소스 격리: 아래 Tomcat 튜닝(max-connections 10K 등)은 비즈니스 트래픽 전용 커넥터다.
+#   관리 트래픽이 이 풀을 잠식하지 않는다.
+# ──────────────────────────────────────────────
 server:
   port: 8080
   shutdown: graceful
@@ -22,6 +32,8 @@ server:
 
 spring.lifecycle.timeout-per-shutdown-phase: 30s
 
+# 관리(운영/관측) 평면 — 분리 이유는 위 server 블록의 '네트워크 평면 분리' 주석 참조.
+# exposure.include로 노출 엔드포인트를 의도적으로 최소화한다(필요한 것만).
 management:
   server:
     port: 8081

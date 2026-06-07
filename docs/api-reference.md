@@ -227,6 +227,11 @@ curl http://localhost:8080/health/live
 
 ## 5. Observability (Actuator, 포트 8081)
 
+> **왜 8080이 아니라 8081인가** — 운영/관측 평면을 대고객 API(8080)와 **물리적으로 분리**했다.
+> actuator는 CircuitBreaker·Bulkhead 상태와 health 상세 등 **내부 상태를 노출**하므로 공개 포트에 두지 않는다.
+> 포트가 분리돼 있으면 Ingress/Security Group에서 **8081을 내부망·모니터링에만** 열 수 있고(앱 시큐리티보다 단순·견고),
+> K8s liveness/readiness 프로브도 비즈니스 트래픽과 **경쟁하지 않는다**. 설정: `management.server.port` (`application.yml`).
+
 ```bash
 # 전체 헬스 (CB 포함)
 curl http://localhost:8081/actuator/health
