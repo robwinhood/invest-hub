@@ -76,11 +76,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.cut.outputs.version }}"
-          # CHANGELOG에서 '## [X.Y.Z]' 섹션 본문만 추출 (다음 '## [' 직전까지)
+          # CHANGELOG에서 '## [X.Y.Z]' 섹션 본문만 추출 (다음 '## [' 직전까지).
+          # 끝에 딸려오는 버전 구분선('---')과 꼬리 빈 줄은 릴리즈 노트에서 제거한다.
           awk -v tag="## [$V]" '
             index($0, tag) == 1 { grab = 1; next }
             grab && /^## \[/   { exit }
-            grab               { print }
+            grab               { buf[n++] = $0 }
+            END {
+              while (n > 0 && (buf[n-1] ~ /^[[:space:]]*$/ || buf[n-1] ~ /^-{3,}[[:space:]]*$/)) n--
+              for (i = 0; i < n; i++) print buf[i]
+            }
           ' CHANGELOG.md > /tmp/release-notes.md
           gh release create "v$V" --title "v$V" --notes-file /tmp/release-notes.md --latest
           echo "📦 GitHub Release v$V 발행 완료"
