@@ -1,8 +1,8 @@
 # API Reference
 
-invest-hub가 노출하는 전체 HTTP 엔드포인트 명세다. 설계 배경은 [ADR-008](adr/008-aggregate-plus-resource-endpoints.md)(집계 + 도메인별 리소스), [ADR-006](adr/006-partial-success-sealed-class.md)(Partial Success)을 참고한다.
+invest-hub가 노출하는 전체 HTTP 엔드포인트 명세다. 설계 배경은 [ADR-008](../adr/008-aggregate-plus-resource-endpoints.md)(집계 + 도메인별 리소스), [ADR-006](../adr/006-partial-success-sealed-class.md)(Partial Success)을 참고한다.
 
-> 🧪 **서버 없이 브라우저에서 직접 호출해보고 싶다면** → **https://robwinhood.github.io/invest-hub/api/** 인터랙티브 탐색기(Swagger UI + 브라우저 목, 소스: [docs/api/](api/index.html)). "Try it out"을 누르면 백엔드 없이 브라우저 내 목이 Mock 응답을 돌려준다.
+> 🧪 **서버 없이 브라우저에서 직접 호출해보고 싶다면** → **https://robwinhood.github.io/invest-hub/api/** 인터랙티브 탐색기(Swagger UI + 브라우저 목, 소스: [docs/api/](index.html)). "Try it out"을 누르면 백엔드 없이 브라우저 내 목이 Mock 응답을 돌려준다.
 
 ## 공통 사항
 

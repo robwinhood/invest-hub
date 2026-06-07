@@ -92,7 +92,7 @@
 
 ---
 
-#### `docs/ai-dev-workflow.md` — AI 개발 5단계 워크플로우 (가장 중요)
+#### `docs/ai/ai-dev-workflow.md` — AI 개발 5단계 워크플로우 (가장 중요)
 
 **한 줄 설명**: "어떤 순서로 일하면 사람 손이 덜 드는가"를 정의한 문서. PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰의 5단계와, 각 단계를 자동화하는 장치가 정리되어 있다.
 
@@ -101,24 +101,24 @@
 **핵심**: 1~4단계는 AI가 자동, 5단계(리뷰·머지)만 사람이 한다.
 
 ```
-위치: docs/ai-dev-workflow.md
+위치: docs/ai/ai-dev-workflow.md
 ```
 
 ---
 
-#### `docs/ai-dev-guide.md` — AI 개발·운영 활용 가이드
+#### `docs/ai/ai-dev-guide.md` — AI 개발·운영 활용 가이드
 
 **한 줄 설명**: 워크플로우를 실무 시나리오별(새 기능·버그 수정·리뷰)로 풀어 쓴 문서.
 
 **언제 여는가**: AI에게 작업을 시키는 구체적 방법을 찾을 때. 팀 온보딩 시.
 
 ```
-위치: docs/ai-dev-guide.md
+위치: docs/ai/ai-dev-guide.md
 ```
 
 ---
 
-#### `docs/prd-datasource-template.md` — 새 기능 추가 요청서 (PRD 양식)
+#### `docs/template/prd-datasource-template.md` — 새 기능 추가 요청서 (PRD 양식)
 
 **한 줄 설명**: 새 데이터 소스(예: 국내 ETF, 채권 포트폴리오)를 추가할 때 AI에게 전달하는 요청서 양식. 이것만 채우면 AI가 코드를 다 만들어준다.
 
@@ -140,7 +140,7 @@
 ```
 
 ```
-위치: docs/prd-datasource-template.md
+위치: docs/template/prd-datasource-template.md
 ```
 
 ---
@@ -226,8 +226,8 @@
 언제                        어떤 파일을 여는가
 ─────────────────────────────────────────────────────────────
 프로젝트 처음 접할 때       README.md
-새 기능 추가하고 싶을 때    docs/prd-datasource-template.md
-AI 사용법 모를 때           docs/ai-dev-guide.md
+새 기능 추가하고 싶을 때    docs/template/prd-datasource-template.md
+AI 사용법 모를 때           docs/ai/ai-dev-guide.md
 설계 결정 이유 궁금할 때    docs/adr/
 PR 리뷰할 때                .github/pull_request_template.md (자동)
 배포 후 장애 추적           CHANGELOG.md
@@ -426,7 +426,7 @@ GET /api/v1/investment/dashboard
 **새 데이터 소스(예: 국내 ETF)를 추가하고 싶을 때:**
 
 ```
-1. (사람) docs/prd-datasource-template.md 양식을 채운다.  ← 유일하게 사람이 쓰는 것
+1. (사람) docs/template/prd-datasource-template.md 양식을 채운다.  ← 유일하게 사람이 쓰는 것
 2. (AI)  Claude Code에 "/ship" + 채운 PRD 붙여넣기
          → ①요구사항분석 → ②설계 → ③개발+테스트(/add-datasource 활용)
          → ④자가검토(/self-review) → check-all → 커밋·푸시 → ⑤PR 생성까지 한 번에
@@ -451,7 +451,7 @@ GET /api/v1/investment/dashboard
 
 > 핵심: AI가 "기계적으로 잡을 수 있는 것"을 ④단계에서 모두 잡으므로,
 > 사람은 ⑤단계에서 "기계가 판단할 수 없는 것"(비즈니스 맥락, 한계 수용 여부)에만 집중한다.
-> 자세한 정의는 `docs/ai-dev-workflow.md`에 있다.
+> 자세한 정의는 `docs/ai/ai-dev-workflow.md`에 있다.
 
 ---
 
@@ -520,7 +520,7 @@ Redis 같은 영속 캐시에서 흔한 사고죠. 구 포맷 JSON과 새 클래
 
 **Q12. AI가 코드를 만든 뒤 검토 없이 바로 사람한테 넘기면 리뷰 부담이 크지 않나요?**
 
-그래서 사람 리뷰 직전에 **④ 비판적 검토 단계**를 넣었습니다. AI가 `/self-review` 커맨드로 안전성·아키텍처·휴먼에러·테스트 체크리스트를 스스로 점검하고, 위반은 즉시 고친 뒤 "수정한 것 / 사람 판단이 필요한 것"을 보고서로 만듭니다. 사람은 이 보고서의 "판단 필요 항목"만 봅니다. 기계가 잡을 수 있는 건 기계가 다 잡고 넘깁니다. (전체 흐름: `docs/ai-dev-workflow.md`)
+그래서 사람 리뷰 직전에 **④ 비판적 검토 단계**를 넣었습니다. AI가 `/self-review` 커맨드로 안전성·아키텍처·휴먼에러·테스트 체크리스트를 스스로 점검하고, 위반은 즉시 고친 뒤 "수정한 것 / 사람 판단이 필요한 것"을 보고서로 만듭니다. 사람은 이 보고서의 "판단 필요 항목"만 봅니다. 기계가 잡을 수 있는 건 기계가 다 잡고 넘깁니다. (전체 흐름: `docs/ai/ai-dev-workflow.md`)
 
 **Q13. 새 데이터 소스(예: 국내 채권)를 추가하려면 얼마나 걸리나요?**
 

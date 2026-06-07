@@ -257,7 +257,7 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 ## 개발 워크플로우 (반드시 따를 것)
 
 모든 기능 개발은 **PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰** 5단계를 따른다.
-1~4단계는 AI가 자동 수행하고, 5단계만 사람이 한다. 전체 정의: `docs/ai-dev-workflow.md`
+1~4단계는 AI가 자동 수행하고, 5단계만 사람이 한다. 전체 정의: `docs/ai/ai-dev-workflow.md`
 
 - ③ 개발: 새 데이터 소스는 `/add-datasource` skill 사용
 - ④ 검토: **코드 작성 후 반드시 `/self-review` 실행** 후 사람 리뷰로 넘긴다 (건너뛰지 말 것)
@@ -300,7 +300,7 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 투자 대시보드에 새 섹션을 추가할 때는 수동으로 약 10개 파일을 만들 필요 없다.
 `/add-datasource` 명령어에 PRD를 붙여넣으면 자동으로 생성된다.
 
-**PRD 작성법**: `docs/prd-datasource-template.md` 참고  
+**PRD 작성법**: `docs/template/prd-datasource-template.md` 참고  
 **Skill 정의**: `.claude/commands/add-datasource.md`
 
 ```

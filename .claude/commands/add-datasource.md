@@ -328,7 +328,7 @@ JAVA_HOME=~/.jdks/corretto-25/Contents/Home ./gradlew test
 ## 비판적 검토 (워크플로우 ④ — 반드시 수행)
 
 코드 생성 후 **`/self-review`를 실행**해 자가 검토를 수행한다.
-이 단계 없이 사람 리뷰로 넘기지 않는다. (`docs/ai-dev-workflow.md` 참고)
+이 단계 없이 사람 리뷰로 넘기지 않는다. (`docs/ai/ai-dev-workflow.md` 참고)
 
 빠른 1차 체크리스트:
 
