@@ -36,6 +36,7 @@
 - 코드 주석·문서의 내부 프로젝트/티켓 참조를 일반화 (`StartupReadyTracker`, `CacheKeyVersionGenerator`, ADR-007).
 - `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
 - **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
+- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai-dev-workflow.md`·`docs/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
 
 ### Added
 - AI 개발 워크플로우 5단계 도입 (PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰)
