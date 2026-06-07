@@ -84,7 +84,11 @@ class CacheInvalidationService(
      * refresh는 무효화 직후 데이터 소스를 호출해 캐시를 사전에 채운다.
      * 적합한 [CacheRefreshStrategy]가 없으면 evict만 수행한다.
      *
-     * @param cacheBaseName 기본 캐시 이름 (예: "recommendations")
+     * `cacheBaseName`은 기본 이름("recommendations")과 versioned 이름("recommendations:v7a0fe702")을
+     * **모두** 받는다. 전략 탐색·호출에는 항상 기본 이름으로 정규화해 넘긴다 — 그래서 어드민이
+     * `GET /admin/cache`의 versioned 이름을 그대로 붙여넣어도 evict처럼 refresh도 동작한다.
+     *
+     * @param cacheBaseName 기본 또는 versioned 캐시 이름 (예: "recommendations" / "recommendations:v7a0fe702")
      * @param key           재갱신할 키 (예: userId)
      */
     fun evictAndRefresh(
@@ -93,30 +97,59 @@ class CacheInvalidationService(
     ) {
         evict(cacheBaseName, key)
 
-        val strategy = refreshStrategies.find { it.supports(cacheBaseName) }
+        val baseName = baseNameOf(cacheBaseName)
+        val strategy = refreshStrategies.find { it.supports(baseName) }
         if (strategy != null) {
-            runCatching { strategy.refresh(cacheBaseName, key) }
-                .onSuccess { log.info { "[CACHE] refresh 완료 — cache=$cacheBaseName, key=$key" } }
-                .onFailure { ex -> log.warn(ex) { "[CACHE] refresh 실패 — cache=$cacheBaseName, key=$key (evict는 완료됨)" } }
+            runCatching { strategy.refresh(baseName, key) }
+                .onSuccess { log.info { "[CACHE] refresh 완료 — cache=$baseName, key=$key" } }
+                .onFailure { ex -> log.warn(ex) { "[CACHE] refresh 실패 — cache=$baseName, key=$key (evict는 완료됨)" } }
         } else {
-            log.debug { "[CACHE] refresh 전략 없음 — cache=$cacheBaseName (evict만 수행)" }
+            log.debug { "[CACHE] refresh 전략 없음 — cache=$baseName (evict만 수행)" }
         }
     }
 
     /**
      * 전체 캐시를 무효화한 뒤 즉시 재갱신한다.
      *
-     * @param cacheBaseName 기본 캐시 이름
+     * 추천처럼 **키(userId) 단위로 캐시되는** 데이터는 "키 없는 전체 재갱신"이 불가능하다(무엇을
+     * 다시 불러올지 알 수 없음). 그래서 **비우기 직전** 캐시에 보관돼 있던 키들을
+     * ([CacheKeyEnumerable]) 먼저 수집한 뒤, evict 후 그 키들을 하나씩 재갱신한다
+     * → "현재 캐시돼 있던 사용자 전체를 다시 데움". 키 열거를 지원하지 않거나 비어 있던 캐시는
+     * 전략의 전체 재갱신(key=null)에 위임한다(대개 no-op).
+     *
+     * `cacheBaseName`은 기본/versioned 이름을 모두 받는다(evictAndRefresh와 동일).
+     *
+     * @param cacheBaseName 기본 또는 versioned 캐시 이름
      */
     fun evictAllAndRefresh(cacheBaseName: String) {
+        // 비우기 전에 보관돼 있던 키를 수집한다 — evictAll 이후엔 키를 알 수 없다.
+        val cachedKeys =
+            resolveCache(cacheBaseName)
+                .filterIsInstance<CacheKeyEnumerable>()
+                .flatMap { it.keys() }
+                .distinct()
+
         evictAll(cacheBaseName)
 
-        val strategy = refreshStrategies.find { it.supports(cacheBaseName) }
-        if (strategy != null) {
-            runCatching { strategy.refresh(cacheBaseName, null) }
-                .onSuccess { log.info { "[CACHE] 전체 refresh 완료 — cache=$cacheBaseName" } }
-                .onFailure { ex -> log.warn(ex) { "[CACHE] 전체 refresh 실패 — cache=$cacheBaseName (evict는 완료됨)" } }
+        val baseName = baseNameOf(cacheBaseName)
+        val strategy = refreshStrategies.find { it.supports(baseName) }
+        if (strategy == null) {
+            log.debug { "[CACHE] 전체 refresh 전략 없음 — cache=$baseName (evictAll만 수행)" }
+            return
         }
+
+        if (cachedKeys.isEmpty()) {
+            // 비울 때 항목이 없었으면 데울 대상도 없다 — 전략에 전체 재갱신을 위임(대개 no-op).
+            runCatching { strategy.refresh(baseName, null) }
+                .onFailure { ex -> log.warn(ex) { "[CACHE] 전체 refresh 실패 — cache=$baseName (evict는 완료됨)" } }
+            return
+        }
+
+        cachedKeys.forEach { key ->
+            runCatching { strategy.refresh(baseName, key) }
+                .onFailure { ex -> log.warn(ex) { "[CACHE] 전체 refresh 일부 실패 — cache=$baseName, key=$key (계속 진행)" } }
+        }
+        log.info { "[CACHE] 전체 refresh 완료 — cache=$baseName, 재갱신 ${cachedKeys.size}건(키=$cachedKeys)" }
     }
 
     /** 현재 등록된 모든 캐시 이름을 반환한다 (기본 이름과 버전화된 이름 모두 포함). */
@@ -139,6 +172,12 @@ class CacheInvalidationService(
                 keys = keys,
             )
         }
+
+    /**
+     * versioned 이름("recommendations:v7a0fe702")을 기본 이름("recommendations")으로 정규화한다.
+     * 이미 기본 이름이면 그대로 반환한다. 전략 `supports()`는 기본 이름만 알기 때문에 필요하다.
+     */
+    private fun baseNameOf(cacheName: String): String = cacheName.substringBefore(':')
 
     private fun resolveCache(cacheBaseName: String): List<org.springframework.cache.Cache> =
         cacheManager.cacheNames

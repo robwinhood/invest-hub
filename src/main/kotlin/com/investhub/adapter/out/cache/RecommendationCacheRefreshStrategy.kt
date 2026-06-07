@@ -12,9 +12,11 @@ import org.springframework.stereotype.Component
  * [CachingResilientAdapter]가 응답을 캐시에 자동 저장하므로
  * 별도 캐시 저장 로직이 필요 없다.
  *
- * 전체 재갱신(key=null): 현재는 지원하지 않는다.
- * 추천 상품은 userId 단위 캐시이므로 특정 userId 없이 전체를 미리 불러오기 어렵다.
- * 필요하다면 활성 사용자 목록을 별도로 관리해 일괄 재갱신하는 방식으로 확장할 수 있다.
+ * 전체 재갱신(key=null): 이 전략 단독으로는 미지원(추천은 userId 단위라 키 없이 전체를
+ * 불러올 수 없다). 대신 [com.investhub.application.service.CacheInvalidationService.evictAllAndRefresh]가
+ * **비우기 직전 캐시에 있던 userId들을 수집해** 키별로 이 전략의 [refresh]를 호출한다.
+ * 따라서 `POST /admin/cache/recommendations/refresh`(키 없는 전체 재갱신)도 현재 캐시돼 있던
+ * 사용자 전체를 실제로 다시 데운다. key=null 분기는 그 외(빈 캐시 등) 경우의 안전한 no-op이다.
  */
 @Component
 class RecommendationCacheRefreshStrategy(
