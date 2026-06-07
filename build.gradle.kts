@@ -37,9 +37,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("com.github.ben-manes.caffeine:caffeine")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    // Jackson 3(tools.jackson) Kotlin 모듈 — L2(Mock Redis) 캐시 JSON 직렬화/역직렬화용.
+    // Jackson 3(tools.jackson) Kotlin 모듈 — L2(Mock Redis) 캐시 + 웹(Spring Boot 4 자동설정) JSON 직렬화용.
     // Spring Boot 4.0이 관리하는 jackson-bom 3.1.2(GA)에 포함되므로 버전 생략.
+    // (Jackson 2 jackson-module-kotlin은 미사용 — Spring Boot 4는 Jackson 3을 쓰고, 코드에 Jackson 2 ObjectMapper가 없다.
+    //  `@JsonInclude` 등 annotation은 jackson-annotations(com.fasterxml 패키지 유지)에서 전이로 제공된다.)
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
