@@ -10,7 +10,7 @@
 ### Added
 - **API 명세 문서 분리 + 서버리스 인터랙티브 탐색기**.
   - `docs/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
-  - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages(`/docs`) 활성화 시 `https://<owner>.github.io/invest-hub/api/`로 접근.
+  - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages 게시 완료 — **https://robwinhood.github.io/invest-hub/api/** 에서 접근(소스: `main`/`docs`).
   - Actuator 호스트 표기 정정: 관리 포트 **8081**(기존 README 예시의 8080은 `management.server.port`와 불일치).
 - **하이브리드 API — 집계 엔드포인트 + 도메인별 리소스 엔드포인트** (ADR-008).
   - 기존 `GET /dashboard`(집계, 첫 화면)는 유지하고 도메인 단독 엔드포인트 3종 추가: `GET /assets`, `GET /foreign-stocks`, `GET /recommendations`.
