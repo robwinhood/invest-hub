@@ -11,8 +11,8 @@ info:
     모든 비즈니스 API는 `X-User-Id` 헤더가 필요합니다. 임의 값(`user-001` 등)이면 됩니다.
 
 servers:
-  - url: https://demo.invest-hub.local
-    description: 브라우저 내 목(In-browser mock) — 실제 호출되지 않습니다
+  - url: https://in-browser-mock.invalid
+    description: ⚠️ 실제 주소가 아닙니다 — 브라우저 안의 목(mock)이 응답합니다. 이 주소로 직접 접속하면 아무 데도 연결되지 않습니다(의도된 동작).
 
 tags:
   - name: Dashboard
