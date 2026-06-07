@@ -9,13 +9,13 @@
 
 ## 과제 3대 요구사항 → 충족 방식 (한눈에 보기)
 
-> 과제 「나. 시스템 설계 및 제약 조건」의 세 항목을, **무엇으로 충족하고 어떤 테스트로 증명했는지** 한 표로 요약한다. 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 R1~R8)와 [ADR 문서](docs/adr/)로 이어진다.
+> 과제 「나. 시스템 설계 및 제약 조건」의 세 항목을 **한 줄 답**으로 요약한다. 각 항목의 핵심 메커니즘·코드 증명 등 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 R1~R8)와 [ADR 문서](docs/adr/)로 이어진다.
 
-| 요구사항 | 한 줄 답 | 핵심 메커니즘 | 코드로 증명 |
-|---|---|---|---|
-| **① 서비스 독립성**<br>장애가 정상 도메인에 전파되지 않을 것 | 장애를 **섹션 단위로 격리** — 한 소스가 죽어도 나머지는 정상 응답 | 어댑터별 전용 VT Executor + CB→Bulkhead→TimeLimiter + Partial Success(Sealed Result) | `InvestmentDashboardServiceTest`·`VirtualThreadIsolationTest` |
-| **② 리소스 통제**<br>대규모 요청에서 자원 효율 극대화 | 블로킹해도 **OS 스레드 비점유**, 입구·동시성 **이중 상한**으로 폭주 차단 | Virtual Thread + Semaphore Bulkhead(Little's Law) + 글로벌 RateLimiter(15K TPS·즉시 429) | `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`·`VirtualThreadIsolationTest` |
-| **③ 속성별 처리**<br>도메인별 실시간성에 맞는 제어 | 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 구조로 강제(누락 불가) | `ResilientAdapter`(실시간) vs `CachingResilientAdapter`(저실시간 L1+L2) + 속성별 Cache-Control | `CachingResilientAdapterTest`·`TwoTierCacheTest`·`InvestmentResourceControllerTest` |
+| 요구사항 | 한 줄 답 | 상세 |
+|---|---|---|
+| **① 서비스 독립성**<br>장애가 정상 도메인에 전파되지 않을 것 | 장애를 **섹션 단위로 격리** — 한 소스가 죽어도 나머지는 정상 응답 | (2) R1·R4 |
+| **② 리소스 통제**<br>대규모 요청에서 자원 효율 극대화 | 블로킹해도 **OS 스레드 비점유** + 입구·동시성 **이중 상한**으로 폭주 차단 | (2) R2 · (3) |
+| **③ 속성별 처리**<br>도메인별 실시간성에 맞는 제어 | 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 구조로 강제 | (2) R3 · (3) |
 
 > 세 항목 모두 **"런타임 점검"이 아니라 "컴파일·빌드 시점의 구조적 강제"** 로 보장한다(R8 — ArchUnit이 CB 누락·레이어 위반을 빌드에서 차단). 각 항목의 상세 근거(리스크 분석·결정 배경·최적화·검증) → 바로 아래 (1)~(4).
 
