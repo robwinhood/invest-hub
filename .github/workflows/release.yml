@@ -68,3 +68,19 @@ jobs:
           git push origin HEAD:main
           git push origin "v$V"
           echo "✅ Released v$V"
+
+      # 4) GitHub Release 발행 — 방금 컷한 CHANGELOG의 [X.Y.Z] 섹션을 릴리즈 노트로 사용
+      - name: Create GitHub Release
+        if: ${{ steps.cut.outputs.version != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.cut.outputs.version }}"
+          # CHANGELOG에서 '## [X.Y.Z]' 섹션 본문만 추출 (다음 '## [' 직전까지)
+          awk -v tag="## [$V]" '
+            index($0, tag) == 1 { grab = 1; next }
+            grab && /^## \[/   { exit }
+            grab               { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          gh release create "v$V" --title "v$V" --notes-file /tmp/release-notes.md --latest
+          echo "📦 GitHub Release v$V 발행 완료"
