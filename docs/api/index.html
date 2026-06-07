@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>invest-hub API Explorer (서버리스 데모)</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .mock-banner {
+      background: #1b1f24; color: #d6f5d6; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 10px 18px; border-bottom: 3px solid #49cc90;
+    }
+    .mock-banner b { color: #49cc90; }
+    .mock-banner code { background: #2d333b; color: #fff; padding: 1px 6px; border-radius: 4px; }
+  </style>
+
+  <!--
+    ── 브라우저 내 목(mock) ─────────────────────────────────────────────────
+    Swagger UI의 "Try it out"이 보내는 fetch 요청을 가로채, 실제 서버 호출 없이
+    invest-hub가 반환하는 결정적 Mock 응답을 그대로 돌려준다.
+    (이 프로젝트의 외부 시스템이 전부 Mock이라 응답이 결정적이므로 가능)
+
+    ⚠️ 이 override는 swagger-ui-bundle.js 보다 "먼저" 실행되어야 한다.
+       swagger-client가 로드 시점에 self.fetch 참조를 캡처하기 때문에,
+       그 전에 window.fetch를 교체해 두어야 가로채기가 적용된다.
+  -->
+  <script>
+    const MOCK_HOST = "demo.invest-hub.local";
+
+    const ASSET = {
+      status: "SUCCESS",
+      totalBalance: 23751867,
+      savingsList: [
+        { accountId: "ACC-user-001-001", accountType: "SAVINGS", accountTypeLabel: "보통예금", productName: "투자허브 보통예금", balance: 5234567, currency: "KRW" },
+      ],
+      investmentList: [
+        { holdingId: "HOLD-user-001-001", holdingType: "FUND", holdingTypeLabel: "펀드", name: "글로벌 혼합형 펀드", currentValue: 5502300, purchaseValue: 5000000, returnRate: 10.05, currency: "KRW" },
+      ],
+    };
+    const STOCKS = {
+      status: "SUCCESS",
+      totalValueInKrw: 3296333,
+      holdingList: [
+        { ticker: "AAPL", stockName: "Apple Inc.", quantity: 5, currentPrice: 189.50, currency: "USD", currentValueInKrw: 1270925, purchaseValueInKrw: 1100000, returnRate: 15.54 },
+        { ticker: "MSFT", stockName: "Microsoft Corp.", quantity: 3, currentPrice: 430.20, currency: "USD", currentValueInKrw: 1730500, purchaseValueInKrw: 1500000, returnRate: 15.37 },
+      ],
+    };
+    const RECO = {
+      status: "SUCCESS",
+      productList: [
+        { productId: "PROD-001", productType: "ETF", productTypeLabel: "ETF", name: "미국 S&P500 ETF", description: "미국 500대 기업에 분산 투자하는 대표 ETF.", expectedReturnRate: 8.50, riskLevel: "MEDIUM", riskLevelLabel: "보통", minimumAmount: 10000 },
+      ],
+    };
+
+    // method + 정규식 → (matchGroups) => { status?, json?, text?, cacheControl? }
+    // 겹치는 경로는 더 구체적인(세그먼트가 많은) 패턴을 먼저 둔다.
+    const ROUTES = [
+      ["GET", /\/api\/v1\/investment\/dashboard$/, () => ({
+        cacheControl: "no-store",
+        json: {
+          userId: "user-001",
+          generatedAt: "2026-05-31T12:00:00.000000",
+          totalAssetValueInKrw: 27048200,
+          assetSummary: ASSET,
+          foreignStockPortfolio: STOCKS,
+          recommendedProducts: RECO,
+        },
+      })],
+      ["GET", /\/api\/v1\/investment\/assets$/, () => ({ cacheControl: "private, max-age=30", json: ASSET })],
+      ["GET", /\/api\/v1\/investment\/foreign-stocks$/, () => ({ cacheControl: "no-store", json: STOCKS })],
+      ["GET", /\/api\/v1\/investment\/recommendations$/, () => ({ cacheControl: "private, max-age=300", json: RECO })],
+
+      ["GET", /\/admin\/cache$/, () => ({ json: { caches: ["recommendations::v3a9f1c2"], count: 1 } })],
+      ["POST", /\/admin\/cache\/([^/]+)\/([^/]+)\/refresh$/, (m) => ({ json: { status: "evicted_and_refreshed", cache: m[1], key: m[2] } })],
+      ["DELETE", /\/admin\/cache\/([^/]+)\/([^/]+)$/, (m) => ({ json: { status: "evicted", cache: m[1], key: m[2] } })],
+      ["POST", /\/admin\/cache\/([^/]+)\/refresh$/, (m) => ({ json: { status: "evicted_all_and_refreshed", cache: m[1] } })],
+      ["DELETE", /\/admin\/cache\/([^/]+)$/, (m) => ({ json: { status: "evicted_all", cache: m[1] } })],
+
+      ["GET", /\/health\/startup$/, () => ({ text: "OK" })],
+      ["GET", /\/health\/ready$/, () => ({ text: "OK" })],
+      ["GET", /\/health\/live$/, () => ({ text: "OK" })],
+    ];
+
+    const realFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const url = typeof input === "string" ? input : input.url;
+      const method = ((init && init.method) || (typeof input === "object" && input && input.method) || "GET").toUpperCase();
+      let parsed;
+      try { parsed = new URL(url, window.location.href); } catch (_) { return realFetch(input, init); }
+
+      // openapi.yaml 등 정적 파일 요청(같은 origin)은 그대로 통과
+      if (parsed.host !== MOCK_HOST) return realFetch(input, init);
+
+      const path = parsed.pathname;
+      for (const [m, re, build] of ROUTES) {
+        if (m !== method) continue;
+        const match = path.match(re);
+        if (!match) continue;
+
+        await new Promise((r) => setTimeout(r, 120 + Math.floor(Math.random() * 280))); // 네트워크 지연 흉내
+        const res = build(match);
+        const headers = new Headers({ "X-Request-Id": (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) });
+        let body;
+        if (res.text !== undefined) {
+          headers.set("Content-Type", "text/plain");
+          body = res.text;
+        } else {
+          headers.set("Content-Type", "application/json");
+          body = JSON.stringify(res.json, null, 2);
+        }
+        if (res.cacheControl) headers.set("Cache-Control", res.cacheControl);
+        return new Response(body, { status: res.status || 200, statusText: "OK", headers });
+      }
+      // 스펙에 없는 경로 → 404
+      return new Response(JSON.stringify({ title: "Not Found", status: 404 }), {
+        status: 404, headers: { "Content-Type": "application/problem+json" },
+      });
+    };
+  </script>
+</head>
+<body>
+  <div class="mock-banner">
+    🟢 <b>서버리스 데모</b> — 이 페이지는 백엔드 없이 동작합니다. <b>Try it out</b>을 누르면 실제 서버 대신
+    브라우저 안의 목(mock)이 invest-hub의 결정적 Mock 응답을 돌려줍니다.
+    모든 비즈니스 API는 <code>X-User-Id</code> 헤더가 필요합니다(기본값 <code>user-001</code>).
+  </div>
+  <div id="swagger-ui"></div>
+
+  <!-- 번들은 위 fetch override가 적용된 "이후"에 로드된다 -->
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = () => {
+      SwaggerUIBundle({
+        url: "openapi.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: "StandaloneLayout",
+        tryItOutEnabled: true,
+        defaultModelsExpandDepth: -1,
+      });
+    };
+  </script>
+</body>
+</html>
