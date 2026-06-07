@@ -41,8 +41,10 @@
   - `.claude/commands/self-review.md` — 비판적 자가 검토 skill (④단계)
   - `/add-datasource` skill에 ④ 자가 검토 단계 통합
   - PR 템플릿에 "AI 자동 단계 완료 + 자가 검토 보고서" 섹션 추가
-- `/ship` skill (`.claude/commands/ship.md`) — 워크플로우 ④~⑤ 자동화. `self-review` → `check-all` → commit → push → `gh pr create`를 한 번에 오케스트레이션해 PR 생성까지 무인 수행(머지는 기본 사람 몫). 보호 브랜치·`gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
-  - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 ⑤ + 전용 섹션), `docs/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai-dev-guide.md`(시나리오 5)에 반영.
+- `/ship` skill (`.claude/commands/ship.md`) — **PRD에서 PR까지 전체 개발 파이프라인 자동화**. PRD를 주면 `①요구사항분석 → ②설계(필요 시 ADR) → ③개발+테스트(/add-datasource 활용) → ④자가검토(/self-review) → check-all → commit → push → ⑤PR 생성`을 한 번에 오케스트레이션한다. **적응형**(이미 끝난 단계는 건너뜀 — 코드가 다 됐으면 ④부터 "마무리 모드"). 리뷰·승인·머지(⑤ 본질)는 사람 몫이며 "머지까지" 지시 시 CI 통과 확인 후 자동 머지. 보호 브랜치엔 직접 커밋하지 않고 피처 브랜치를 자동 생성, `gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
+  - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 + 전용 섹션), `docs/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai-dev-guide.md`(시나리오 5)에 반영. "④~⑤만 자동화"라는 초기 부정확 표현을 전체 파이프라인 정의로 교정.
+  - 스킬 구성 정리: `/self-review`·`/add-datasource`는 `/ship`이 호출하는 빌딩블록이자 단독 사용 가능 도구로 역할 명문화. `ship.md` ④에 add-datasource 경유 시 self-review 중복 실행 방지 명시.
+  - `docs/prd-datasource-template.md`를 "권장(자연어로 줘도 ①요구사항분석이 보완)" 톤으로 보강.
 - 캐시 자동 키 버전 관리 (`CacheKeyVersionGenerator`)
   - 클래스 구조(필드명+타입) SHA-256 해시를 캐시 이름에 자동 삽입
   - `InvestmentProduct` 필드 변경 시 캐시 이름 자동 교체 — 사람이 버전 올릴 필요 없음
