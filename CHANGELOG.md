@@ -29,45 +29,34 @@
   - 도메인 단독 엔드포인트는 부분 실패를 **상태 코드**(503/504/429)로, 집계는 200+섹션 `status`로 표현(`SectionHttpStatus.kt`).
   - 입력 유스케이스 3종(`GetAssetSummaryUseCase`·`GetForeignStockPortfolioUseCase`·`GetRecommendedProductsUseCase`) 추가, `InvestmentDashboardService`가 4개 유스케이스를 구현하며 **집계가 도메인 유스케이스를 병렬 재사용**(중복 제거).
   - `ADR-008` 추가 — "단일 집계 API만으론 설계 제약(독립성·자원·속성별 최적화)과 충돌하는 이유"와 하이브리드 근거 명문화.
-  - 테스트 `InvestmentResourceControllerTest`(7) 추가 — 총 **117개**.
-
-### Changed
-- **문서 재구성 — 검토자 가독성 중심**. 거짓 정보 없이 실제 프로젝트 구성만 반영.
-  - `README.md`를 **과제 필수 답변 4항목**(① 잠재적 위험 분석 ② 아키텍처 의사결정·대책 ③ 성능·자원 최적화 ④ 신뢰성 검증 결과)에 집중하도록 재작성. 상세 설계 결정(13개)·헥사고날 다이어그램·패키지 구조·테스트 목록·의존성 정책 등 깊이 있는 내용은 **신규 `docs/architecture.md`** 로 이동하고 README에는 링크만 남김(중복 제거).
-  - `docs/project-summary.md` → **`docs/project-qna.md`** 로 이름 변경(검토자 온보딩 + 설계 리뷰 Q&A 역할 반영). README "📖 문서 안내" 섹션에서 링크.
-  - **테스트 수 표기 정합성 정정**: README·`project-qna.md`의 클래스별 개수를 실제 테스트 리포트 기준으로 동기화(`TwoTierCacheTest` 8→13, `CacheInvalidationServiceTest` 9→13, `CacheAdminControllerTest` 5→6, 누락돼 있던 `LocalCacheSeederTest`(2) 추가). 총합 **129개**는 동일하나 항목별 분배가 어긋나(합산 117) 있던 것을 바로잡음. `project-qna.md`의 ADR "7개" → 8개 정정.
-
-### Fixed
-- **Cache Admin `refresh`가 evict만 하고 재갱신을 누락하던 문제 수정**.
-  - 원인 ①(이름 비대칭): `GET /admin/cache`가 주는 versioned 이름(`recommendations:v7a0fe702`)을 `refresh` 경로에 붙여넣으면, evict는 `it == name || startsWith("$name:")`로 매칭돼 동작했지만 재갱신 전략 탐색은 `supports("recommendations")`(기본 이름)만 알아 **조용히 누락**됐다. → `CacheInvalidationService`가 전략 탐색·호출 시 항상 기본 이름으로 정규화(`baseNameOf`).
-  - 원인 ②(키 없는 전체 재갱신 no-op): 추천은 userId 단위 캐시라 `POST /admin/cache/{name}/refresh`(키 없음)는 무엇을 다시 불러올지 알 수 없어 재갱신이 사실상 동작하지 않았다. → `evictAllAndRefresh`가 **비우기 직전** `CacheKeyEnumerable.keys()`로 캐시돼 있던 userId들을 수집해, evict 후 키별로 재갱신("현재 캐시된 사용자 전체 재데움"). 빈 캐시는 전략의 `key=null` 재갱신에 위임(no-op), 일부 키 실패 시 나머지는 계속 진행.
-  - 회귀 테스트 3건 추가(`CacheInvalidationServiceTest`): versioned 이름 per-key refresh, versioned 이름 전체 재갱신의 키별 호출, 일부 키 실패 시 격리.
-- **Cache Admin `DELETE` 응답 정확도**: 특정 키 무효화 시 실제 제거 여부를 반영해 `status`를 `evicted`(실제 지움) 또는 `not_found`(원래 부재)로 구분. 이전에는 키가 없어도 무조건 `evicted`로 응답해, evict가 동작한 것처럼 보이던 오인을 유발. `Cache.evictIfPresent`/`DistributedCacheStore.evictIfPresent` 기반으로 L1·L2 양쪽의 실제 존재 여부를 판정.
-- PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
-- PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
-- **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.
-- 문서 전반의 테스트 수 표기 정합성 정정 (README·HELP·project-summary의 "101개" → 실제 수치 동기화. `HexagonalArchitectureTest`는 ArchUnit 규칙 6개). 이중 캐시 도입 후 현재 총 **110개**.
-- `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
-- `HELP.md`의 Spring Boot 4.1 참조 링크를 **4.0** 으로 정정 (실제 채택 버전 일치).
-
-### Changed
-- **README에 핵심 설계 의사결정 섹션 추가**: (1) 잠재적 위험 분석(R1–R8) (2) 리스크별 아키텍처 의사결정·대책 (3) 성능·자원 최적화 (4) 신뢰성 검증 결과(시나리오↔테스트 매핑)를 README 상단에 정리.
-- 코드 주석·문서의 내부 프로젝트/티켓 참조를 일반화 (`StartupReadyTracker`, `CacheKeyVersionGenerator`, ADR-007).
-- `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
-- `/ship`(`ship.md`)의 PR 생성 시 `--assignee "@me"`를 기본 적용 — PR Assignee를 현재 로그인 계정으로 자동 지정.
-- **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
-- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
-
-### Added
-- AI 개발 워크플로우 5단계 도입 (PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰)
+  - 테스트 `InvestmentResourceControllerTest`(7) 추가.
+- **AI 개발 워크플로우 5단계 도입** (PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰).
   - `docs/ai/ai-dev-workflow.md` — 전체 프로세스·단계별 자동화 장치 명문화
   - `.claude/commands/self-review.md` — 비판적 자가 검토 skill (④단계)
   - `/add-datasource` skill에 ④ 자가 검토 단계 통합
   - PR 템플릿에 "AI 자동 단계 완료 + 자가 검토 보고서" 섹션 추가
-- `/ship` skill (`.claude/commands/ship.md`) — **PRD에서 PR까지 전체 개발 파이프라인 자동화**. PRD를 주면 `①요구사항분석 → ②설계(필요 시 ADR) → ③개발+테스트(/add-datasource 활용) → ④자가검토(/self-review) → check-all → commit → push → ⑤PR 생성`을 한 번에 오케스트레이션한다. **적응형**(이미 끝난 단계는 건너뜀 — 코드가 다 됐으면 ④부터 "마무리 모드"). 리뷰·승인·머지(⑤ 본질)는 사람 몫이며 "머지까지" 지시 시 CI 통과 확인 후 자동 머지. 보호 브랜치엔 직접 커밋하지 않고 피처 브랜치를 자동 생성, `gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
+- **`/ship` skill** (`.claude/commands/ship.md`) — **PRD에서 PR까지 전체 개발 파이프라인 자동화**. PRD를 주면 `①요구사항분석 → ②설계(필요 시 ADR) → ③개발+테스트(/add-datasource 활용) → ④자가검토(/self-review) → check-all → commit → push → ⑤PR 생성`을 한 번에 오케스트레이션한다. **적응형**(이미 끝난 단계는 건너뜀 — 코드가 다 됐으면 ④부터 "마무리 모드"). 리뷰·승인·머지(⑤ 본질)는 사람 몫이며 "머지까지" 지시 시 CI 통과 확인 후 자동 머지. 보호 브랜치엔 직접 커밋하지 않고 피처 브랜치를 자동 생성, `gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
   - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 + 전용 섹션), `docs/ai/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai/ai-dev-guide.md`(시나리오 5)에 반영. "④~⑤만 자동화"라는 초기 부정확 표현을 전체 파이프라인 정의로 교정.
   - 스킬 구성 정리: `/self-review`·`/add-datasource`는 `/ship`이 호출하는 빌딩블록이자 단독 사용 가능 도구로 역할 명문화. `ship.md` ④에 add-datasource 경유 시 self-review 중복 실행 방지 명시.
   - `docs/template/prd-datasource-template.md`를 "권장(자연어로 줘도 ①요구사항분석이 보완)" 톤으로 보강.
+- **고가용성(100K TPS) 대응**.
+  - `application.yml` — HTTP/2, GZIP 압축, Tomcat 연결 10K, 관리 포트 8081 분리
+  - Rate Limiter — 인스턴스당 15K TPS 상한, 초과 시 즉시 429 반환 (`RateLimiterFilter`)
+  - Resilience4j `configs.default` — 새 어댑터가 portName만 선언해도 CB 자동 적용 (휴먼 에러 방지)
+  - CB 슬라이딩 윈도우 10→100, Bulkhead 50→4,000 (100K TPS 수치 재산정)
+- **웜업 & Startup Probe** (신규 Pod cold-start 및 K8s readiness gap 대응).
+  - `WarmupService` / `Warmer` 인터페이스 / `DashboardWarmer` — 기동 시 JIT+캐시 사전 적재
+  - `StartupReadyTracker` — 웜업→K8s Probe gap 메트릭 (NaN sentinel, Datadog 오염 방지)
+  - `WarmupInvoker` — ApplicationReadyEvent 수신 시 자동 실행
+  - `HealthController` — `/health/startup`, `/health/ready`, `/health/live` 전용 엔드포인트
+  - 웜업 테스트 (`WarmupServiceTest`, `DashboardWarmerTest`, `StartupReadyTrackerTest`, `HealthControllerTest`)
+- **어댑터별 독립 Virtual Thread Executor 분리** (장애 격리 + 스레드 명명).
+  - `accountExecutor` / `partnerExecutor` / `recommendationExecutor` / `serviceExecutor`
+  - 스레드 이름 규칙: `{역할}-vt-N` (로그/APM에서 역할 즉시 식별 가능)
+  - Micrometer ExecutorServiceMetrics 등록으로 `executor.*` 메트릭 노출
+  - `VirtualThreadIsolationTest` — executor 격리·이름·Virtual Thread·병렬성 검증 (13개)
+- ArchUnit `outAdaptersMustExtendResilientAdapter` 규칙 — CB 누락 어댑터 빌드 차단
+- `GlobalExceptionHandler` — RFC 7807 Problem Details 형식의 일관된 에러 응답(429 RateLimiter·429 Bulkhead·503 CB OPEN 포함), `GlobalExceptionHandlerTest` 동반
 - 버전 업그레이드
   - Spring Boot 4.0.1 → **4.0.6** (GA — 비-GA 안전 원칙에 따라 4.1.0-RC1 대신 채택)
   - Kotlin 2.3.0 → **2.3.21** (GA)
@@ -82,43 +71,40 @@
   - ArchUnit에 **코루틴 금지 규칙**(`noCoroutineUsage`) 추가 — `kotlinx.coroutines` import 차단 (ADR-002 강제)
   - `check-all` — `lintKotlin + test` (파일 수정 없음, PR 전 필수)
   - `fix-all` — `formatKotlin + test` (포맷 자동 수정)
-  - `.github/workflows/ci.yml` — lint(Ktlint) → test 2-job 구조
+  - `.github/workflows/ci.yml` — GitHub Actions CI: lint(Ktlint) → test 2-job (push/PR 시 자동)
+  - `.github/pull_request_template.md` — PR 리뷰 체크리스트
+- `docs/ai/ai-dev-guide.md` — AI 자동 개발·운영 활용 가이드
+- `docs/template/prd-datasource-template.md` — skill 사용법 포함 상세 PRD 가이드
+- `CHANGELOG.md` — 변경 이력 관리
 
 ### Changed
+- **문서 재구성 — 검토자 가독성 중심**. 거짓 정보 없이 실제 프로젝트 구성만 반영.
+  - `README.md`를 **과제 필수 답변 4항목**(① 잠재적 위험 분석 ② 아키텍처 의사결정·대책 ③ 성능·자원 최적화 ④ 신뢰성 검증 결과)에 집중하도록 재작성. 상세 설계 결정(13개)·헥사고날 다이어그램·패키지 구조·테스트 목록·의존성 정책 등 깊이 있는 내용은 **신규 `docs/architecture.md`** 로 이동하고 README에는 링크만 남김(중복 제거).
+  - `docs/project-summary.md` → **`docs/project-qna.md`** 로 이름 변경(검토자 온보딩 + 설계 리뷰 Q&A 역할 반영). README "📖 문서 안내" 섹션에서 링크.
+- **README에 핵심 설계 의사결정 섹션 추가**: (1) 잠재적 위험 분석(R1–R8) (2) 리스크별 아키텍처 의사결정·대책 (3) 성능·자원 최적화 (4) 신뢰성 검증 결과(시나리오↔테스트 매핑)를 README 상단에 정리.
+- 코드 주석·문서의 내부 프로젝트/티켓 참조를 일반화 (`StartupReadyTracker`, `CacheKeyVersionGenerator`, ADR-007).
+- `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
+- `/ship`(`ship.md`)의 PR 생성 시 `--assignee "@me"`를 기본 적용 — PR Assignee를 현재 로그인 계정으로 자동 지정.
+- **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
+- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
 - **의존성 정책: GA(정식 릴리즈) 전용으로 확정.** RC·alpha·beta·SNAPSHOT 도입 금지를 `CLAUDE.md` 절대 금지 사항과 README에 명시.
 - Detekt **미채택 결정**: GA(1.23.8)는 Kotlin 2.3.21 비호환, Kotlin 2.3.21 지원 버전은 alpha뿐. 정적 분석 역할을 Ktlint(포맷)+ArchUnit(아키텍처·코루틴 금지)으로 분담. (관련 `detekt.yml`, `detekt-test.yml` 삭제)
 - ADR-007 추가 — 캐시 키 자동 버전 + 무효화·재갱신 설계
-
-### High Availability
-- 고가용성(100K TPS) 대응
-  - `application.yml` — HTTP/2, GZIP 압축, Tomcat 연결 10K, 관리 포트 8081 분리
-  - Rate Limiter — 인스턴스당 15K TPS 상한, 초과 시 즉시 429 반환 (`RateLimiterFilter`)
-  - Resilience4j `configs.default` — 새 어댑터가 portName만 선언해도 CB 자동 적용 (휴먼 에러 방지)
-  - CB 슬라이딩 윈도우 10→100, Bulkhead 50→4,000 (100K TPS 수치 재산정)
-- 웜업 & Startup Probe (신규 Pod cold-start 및 K8s readiness gap 대응)
-  - `WarmupService` / `Warmer` 인터페이스 / `DashboardWarmer` — 기동 시 JIT+캐시 사전 적재
-  - `StartupReadyTracker` — 웜업→K8s Probe gap 메트릭 (NaN sentinel, Datadog 오염 방지)
-  - `WarmupInvoker` — ApplicationReadyEvent 수신 시 자동 실행
-  - `HealthController` — `/health/startup`, `/health/ready`, `/health/live` 전용 엔드포인트
-- ArchUnit `outAdaptersMustExtendResilientAdapter` 규칙 — CB 누락 어댑터 빌드 차단
-- `GlobalExceptionHandler` — 429(RateLimiter), 429(Bulkhead), 503(CB OPEN) 추가
-- 웜업 테스트 (`WarmupServiceTest`, `DashboardWarmerTest`, `StartupReadyTrackerTest`, `HealthControllerTest`)
-- 어댑터별 독립 Virtual Thread Executor 분리 (장애 격리 + 스레드 명명)
-  - `accountExecutor` / `partnerExecutor` / `recommendationExecutor` / `serviceExecutor`
-  - 스레드 이름 규칙: `{역할}-vt-N` (로그/APM에서 역할 즉시 식별 가능)
-  - Micrometer ExecutorServiceMetrics 등록으로 `executor.*` 메트릭 노출
-- `VirtualThreadIsolationTest` — executor 격리·이름·Virtual Thread·병렬성 검증 (13개 테스트)
-- `.github/workflows/ci.yml` — GitHub Actions CI 파이프라인 (push/PR 시 자동 테스트)
-- `.github/pull_request_template.md` — PR 리뷰 체크리스트
-- `GlobalExceptionHandler` — RFC 7807 Problem Details 형식 일관된 에러 응답
-- `GlobalExceptionHandlerTest` — 에러 응답 형식 검증 (33번째 테스트)
-- `CHANGELOG.md` — 변경 이력 관리
-- `docs/ai/ai-dev-guide.md` — AI 자동 개발·운영 활용 가이드
-- `docs/template/prd-datasource-template.md` — skill 사용법 포함 상세 PRD 가이드
-
-### Changed
 - `application.yml` — Graceful Shutdown 설정 추가 (`server.shutdown: graceful`)
 - `CLAUDE.md` — CI/PR 프로세스, 에러 처리 규칙 추가
+
+### Fixed
+- **Cache Admin `refresh`가 evict만 하고 재갱신을 누락하던 문제 수정**.
+  - 원인 ①(이름 비대칭): `GET /admin/cache`가 주는 versioned 이름(`recommendations:v7a0fe702`)을 `refresh` 경로에 붙여넣으면, evict는 `it == name || startsWith("$name:")`로 매칭돼 동작했지만 재갱신 전략 탐색은 `supports("recommendations")`(기본 이름)만 알아 **조용히 누락**됐다. → `CacheInvalidationService`가 전략 탐색·호출 시 항상 기본 이름으로 정규화(`baseNameOf`).
+  - 원인 ②(키 없는 전체 재갱신 no-op): 추천은 userId 단위 캐시라 `POST /admin/cache/{name}/refresh`(키 없음)는 무엇을 다시 불러올지 알 수 없어 재갱신이 사실상 동작하지 않았다. → `evictAllAndRefresh`가 **비우기 직전** `CacheKeyEnumerable.keys()`로 캐시돼 있던 userId들을 수집해, evict 후 키별로 재갱신("현재 캐시된 사용자 전체 재데움"). 빈 캐시는 전략의 `key=null` 재갱신에 위임(no-op), 일부 키 실패 시 나머지는 계속 진행.
+  - 회귀 테스트 4건 추가(`CacheInvalidationServiceTest`): versioned 이름 per-key refresh, versioned 전체 재갱신의 키별 호출, 빈 캐시의 `key=null` 위임, 일부 키 실패 시 격리.
+- **Cache Admin `DELETE` 응답 정확도**: 특정 키 무효화 시 실제 제거 여부를 반영해 `status`를 `evicted`(실제 지움) 또는 `not_found`(원래 부재)로 구분. 이전에는 키가 없어도 무조건 `evicted`로 응답해, evict가 동작한 것처럼 보이던 오인을 유발. `Cache.evictIfPresent`/`DistributedCacheStore.evictIfPresent` 기반으로 L1·L2 양쪽의 실제 존재 여부를 판정.
+- **문서 전반의 테스트 수 표기를 실제 테스트 리포트와 동기화** — 현재 총 **133개**. README·HELP·`project-qna.md`의 클래스별 개수를 실측에 맞춤(`TwoTierCacheTest` 13, `CacheInvalidationServiceTest` 17, `CacheAdminControllerTest` 6, `CacheKeyVersionGeneratorTest` 16, `LocalCacheSeederTest` 2 등). `HexagonalArchitectureTest`는 테스트가 아니라 ArchUnit 규칙 6개. `project-qna.md`의 ADR 개수 8개로 정정. (이전 "101개"·"110개"·"117개"·"129개" 등 사이클 중간 집계 표기 정리.)
+- PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
+- PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
+- **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정.
+- `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
+- `HELP.md`의 Spring Boot 4.1 참조 링크를 **4.0** 으로 정정 (실제 채택 버전 일치).
 
 ---
 
