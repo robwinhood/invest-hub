@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: invest-hub API
+  version: "1.0.0"
+  description: |
+    세 가지 이질적 데이터 소스(내부 원장 · 제휴사 해외주식 · 추천 엔진)를 단일 엔드포인트로 통합하는 투자 대시보드 API.
+
+    > **이 문서는 서버 없이 동작합니다.** "Try it out"을 누르면 실제 백엔드 대신 브라우저 안의 목(mock)이
+    > 이 프로젝트가 반환하는 결정적 Mock 응답을 그대로 돌려줍니다. (invest-hub의 외부 시스템이 모두 Mock이라 가능)
+    >
+    > 모든 비즈니스 API는 `X-User-Id` 헤더가 필요합니다. 임의 값(`user-001` 등)이면 됩니다.
+
+servers:
+  - url: https://demo.invest-hub.local
+    description: 브라우저 내 목(In-browser mock) — 실제 호출되지 않습니다
+
+tags:
+  - name: Dashboard
+    description: 집계 대시보드 (첫 화면 1회 렌더용)
+  - name: Resource
+    description: 도메인별 단독 리소스 (독립 갱신 · 속성별 Cache-Control)
+  - name: Cache Admin
+    description: 캐시 즉시 무효화 · 재갱신 운영 도구
+  - name: Health
+    description: Kubernetes Probe
+
+paths:
+  /api/v1/investment/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: 투자 대시보드 (집계)
+      description: |
+        세 데이터 소스를 가상 스레드에서 병렬 조회해 단일 응답으로 조합한다.
+        한 섹션이 실패해도 200을 반환하고 그 섹션만 `status=FAILURE`로 표기한다 (Partial Success).
+      parameters:
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: 성공 (또는 일부 섹션 부분 실패)
+          headers:
+            Cache-Control: { schema: { type: string }, description: 'no-store' }
+            X-Request-Id: { schema: { type: string }, description: 요청 추적 UUID }
+          content:
+            application/json:
+              examples:
+                전체 성공:
+                  value:
+                    userId: user-001
+                    generatedAt: "2026-05-31T12:00:00.000000"
+                    totalAssetValueInKrw: 27048200
+                    assetSummary:
+                      status: SUCCESS
+                      totalBalance: 23751867
+                      savingsList:
+                        - { accountId: ACC-user-001-001, accountType: SAVINGS, accountTypeLabel: 보통예금, productName: 투자허브 보통예금, balance: 5234567, currency: KRW }
+                      investmentList:
+                        - { holdingId: HOLD-user-001-001, holdingType: FUND, holdingTypeLabel: 펀드, name: 글로벌 혼합형 펀드, currentValue: 5502300, purchaseValue: 5000000, returnRate: 10.05, currency: KRW }
+                    foreignStockPortfolio:
+                      status: SUCCESS
+                      totalValueInKrw: 3296333
+                      holdingList:
+                        - { ticker: AAPL, stockName: Apple Inc., quantity: 5, currentPrice: 189.50, currency: USD, currentValueInKrw: 1270925, purchaseValueInKrw: 1100000, returnRate: 15.54 }
+                    recommendedProducts:
+                      status: SUCCESS
+                      productList:
+                        - { productId: PROD-001, productType: ETF, productTypeLabel: ETF, name: 미국 S&P500 ETF, description: 미국 500대 기업에 분산 투자하는 대표 ETF., expectedReturnRate: 8.50, riskLevel: MEDIUM, riskLevelLabel: 보통, minimumAmount: 10000 }
+                부분 실패 (제휴사 타임아웃):
+                  value:
+                    assetSummary: { status: SUCCESS }
+                    foreignStockPortfolio: { status: FAILURE, failureReason: TIMEOUT }
+                    recommendedProducts: { status: SUCCESS }
+
+  /api/v1/investment/assets:
+    get:
+      tags: [Resource]
+      summary: 내 계좌/자산 (내부 원장)
+      parameters:
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: 성공
+          headers:
+            Cache-Control: { schema: { type: string }, description: 'private, max-age=30' }
+          content:
+            application/json:
+              example:
+                status: SUCCESS
+                totalBalance: 23751867
+                savingsList:
+                  - { accountId: ACC-user-001-001, accountType: SAVINGS, accountTypeLabel: 보통예금, productName: 투자허브 보통예금, balance: 5234567, currency: KRW }
+                investmentList:
+                  - { holdingId: HOLD-user-001-001, holdingType: FUND, holdingTypeLabel: 펀드, name: 글로벌 혼합형 펀드, currentValue: 5502300, purchaseValue: 5000000, returnRate: 10.05, currency: KRW }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/v1/investment/foreign-stocks:
+    get:
+      tags: [Resource]
+      summary: 해외 주식 (제휴사, 실시간)
+      description: 제휴사 시스템과의 통신으로 실시간 조회. 캐시 없음(`no-store`).
+      parameters:
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: 성공
+          headers:
+            Cache-Control: { schema: { type: string }, description: 'no-store' }
+          content:
+            application/json:
+              example:
+                status: SUCCESS
+                totalValueInKrw: 3296333
+                holdingList:
+                  - { ticker: AAPL, stockName: Apple Inc., quantity: 5, currentPrice: 189.50, currency: USD, currentValueInKrw: 1270925, purchaseValueInKrw: 1100000, returnRate: 15.54 }
+                  - { ticker: MSFT, stockName: Microsoft Corp., quantity: 3, currentPrice: 430.20, currency: USD, currentValueInKrw: 1730500, purchaseValueInKrw: 1500000, returnRate: 15.37 }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/v1/investment/recommendations:
+    get:
+      tags: [Resource]
+      summary: 추천 상품 (추천 엔진, 저실시간)
+      description: 추천 엔진 조회. 클라이언트 캐시 5분(`private, max-age=300`) — L2 TTL과 정렬.
+      parameters:
+        - $ref: '#/components/parameters/UserIdHeader'
+      responses:
+        '200':
+          description: 성공
+          headers:
+            Cache-Control: { schema: { type: string }, description: 'private, max-age=300' }
+          content:
+            application/json:
+              example:
+                status: SUCCESS
+                productList:
+                  - { productId: PROD-001, productType: ETF, productTypeLabel: ETF, name: 미국 S&P500 ETF, description: 미국 500대 기업에 분산 투자하는 대표 ETF., expectedReturnRate: 8.50, riskLevel: MEDIUM, riskLevelLabel: 보통, minimumAmount: 10000 }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/cache:
+    get:
+      tags: [Cache Admin]
+      summary: 등록된 캐시 목록
+      responses:
+        '200':
+          description: 캐시 목록 (버전 해시 포함)
+          content:
+            application/json:
+              example: { caches: ["recommendations::v3a9f1c2"], count: 1 }
+
+  /admin/cache/{cacheName}/{key}:
+    delete:
+      tags: [Cache Admin]
+      summary: 특정 키 무효화
+      parameters:
+        - { name: cacheName, in: path, required: true, schema: { type: string }, example: recommendations }
+        - { name: key, in: path, required: true, schema: { type: string }, example: user-001 }
+      responses:
+        '200':
+          description: 무효화 완료
+          content:
+            application/json:
+              example: { status: evicted, cache: recommendations, key: user-001 }
+
+  /admin/cache/{cacheName}/{key}/refresh:
+    post:
+      tags: [Cache Admin]
+      summary: 특정 키 무효화 + 즉시 재갱신
+      parameters:
+        - { name: cacheName, in: path, required: true, schema: { type: string }, example: recommendations }
+        - { name: key, in: path, required: true, schema: { type: string }, example: user-001 }
+      responses:
+        '200':
+          description: 무효화 + 재갱신 완료
+          content:
+            application/json:
+              example: { status: evicted_and_refreshed, cache: recommendations, key: user-001 }
+
+  /admin/cache/{cacheName}:
+    delete:
+      tags: [Cache Admin]
+      summary: 전체 무효화
+      parameters:
+        - { name: cacheName, in: path, required: true, schema: { type: string }, example: recommendations }
+      responses:
+        '200':
+          description: 전체 무효화 완료
+          content:
+            application/json:
+              example: { status: evicted_all, cache: recommendations }
+
+  /admin/cache/{cacheName}/refresh:
+    post:
+      tags: [Cache Admin]
+      summary: 전체 무효화 + 재갱신
+      parameters:
+        - { name: cacheName, in: path, required: true, schema: { type: string }, example: recommendations }
+      responses:
+        '200':
+          description: 전체 무효화 + 재갱신 완료
+          content:
+            application/json:
+              example: { status: evicted_all_and_refreshed, cache: recommendations }
+
+  /health/startup:
+    get:
+      tags: [Health]
+      summary: Startup Probe
+      responses:
+        '200': { description: 'OK', content: { text/plain: { example: OK } } }
+        '503': { description: '웜업 진행 중', content: { text/plain: { example: warming up } } }
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness Probe
+      responses:
+        '200': { description: 'OK', content: { text/plain: { example: OK } } }
+        '503': { description: 'not ready', content: { text/plain: { example: not ready } } }
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness Probe
+      responses:
+        '200': { description: 'OK', content: { text/plain: { example: OK } } }
+
+components:
+  parameters:
+    UserIdHeader:
+      name: X-User-Id
+      in: header
+      required: true
+      description: 사용자 식별자 (운영 환경에서는 API Gateway가 JWT 검증 후 주입). 데모에서는 임의 값.
+      schema: { type: string, default: user-001 }
+  responses:
+    ServiceUnavailable:
+      description: 서킷 오픈 또는 서비스 불가 (CIRCUIT_OPEN / SERVICE_UNAVAILABLE) — 재시도 권장
+      content:
+        application/problem+json:
+          example: { type: "about:blank", title: Service Unavailable, status: 503, detail: "foreign-stock circuit open" }
+    GatewayTimeout:
+      description: 상류 지연 (TIMEOUT)
+      content:
+        application/problem+json:
+          example: { type: "about:blank", title: Gateway Timeout, status: 504, detail: "foreign-stock timed out after 3s" }
+    TooManyRequests:
+      description: 자원 고갈 (RESOURCE_EXHAUSTED) — backoff 후 재시도
+      content:
+        application/problem+json:
+          example: { type: "about:blank", title: Too Many Requests, status: 429, detail: "bulkhead full" }
