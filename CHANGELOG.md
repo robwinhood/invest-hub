@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Fixed
+- PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.
 - 문서 전반의 테스트 수 표기를 **102개**로 통일 (README·HELP·project-summary의 "101개" 정정 — `HexagonalArchitectureTest`는 ArchUnit 규칙 6개).
 - `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
