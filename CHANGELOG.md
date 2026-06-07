@@ -8,10 +8,14 @@
 ## [Unreleased]
 
 ### Added
-- **Cache Admin: `GET /admin/cache`가 엔트리 키까지 노출**.
-  - 응답을 `{ caches: [{ name, baseName, entryCount, keys }], count }` 형태로 확장 — 캐시 "이름(컨테이너)"과 그 안의 evict 가능한 "키(엔트리)"를 명확히 구분해, 버전 해시(`name`의 `:v…`)를 키로 오인하던 혼동을 해소.
-  - `CacheKeyEnumerable` 포트 추가 + `TwoTierCache.keys()` 구현(L1·L2 합집합, L2 prefix 환원). `DistributedCacheStore`에 `keysByPrefix`(Redis `SCAN` 대응) 추가.
-- **로컬 구동 시 추천 캐시 자동 시딩** — `./gradlew bootRun`이 `local` 프로파일로 떠서 `LocalCacheSeeder`가 데모 사용자(`user-001`~`user-003`) 추천 캐시를 기동 직후 사전 적재한다. 기동 직후 바로 `GET /admin/cache`에서 evict 가능한 키를 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
+- **추천 캐시 인프라 — 2계층 캐시(L1 Caffeine + L2 Mock Redis) + 자동 키 버전 + 분산 무효화·재갱신 + Admin API**.
+  - **2계층 캐시** `TwoTierCache`(`org.springframework.cache.Cache` 구현): L1 hit→반환 / L1 miss·L2 hit→L1 승격 / 둘 다 miss→원본 호출 후 L1·L2 write-through. `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작.
+  - **L2 추상화** `DistributedCacheStore` 포트 + `MockRedisStore`(인메모리 Mock Redis: KV + TTL + Pub/Sub, `keysByPrefix`=Redis `SCAN` 대응). 외부 의존성 없이 Redis 모사(GA 정책상 embedded-redis 회피), 실 환경은 Lettuce 구현으로 포트만 교체. L2는 Jackson 3로 **직렬화 저장**.
+  - **자동 키 버전** `CacheKeyVersionGenerator`: 캐시 대상 클래스 구조(필드명+타입) SHA-256 해시를 캐시 이름에 삽입(`recommendations:v7a0fe702`). `InvestmentProduct` 필드 변경 시 키 자동 교체 → L2 직렬화 충돌 원천 차단(수동 버전업 불필요).
+  - **무효화·재갱신** `CacheInvalidationService`(+`CacheEventPublisher`/`CacheRefreshStrategy`): `evict`/`evictAll`/`evictAndRefresh`(재갱신은 비운 직후 능동 호출 → 캐시 미스 0). 무효화는 **L1·L2 모두** 제거 후 `MockRedisCacheEventPublisher`(빈 `redisCacheEventPublisher`) → `L1EvictionSubscriber` Pub/Sub으로 타 Pod L1 전파(`NoOpCacheEventPublisher`는 `@ConditionalOnMissingBean`으로 자동 비활성화). `RecommendationCacheRefreshStrategy` 구현.
+  - **Cache Admin API** `CacheAdminController`: `GET /admin/cache`(엔트리 키까지 노출 — `{ caches:[{ name, baseName, entryCount, keys }], count }`로 이름/키 혼동 해소), `DELETE /admin/cache/{name}/{key}`, `DELETE /admin/cache/{name}`, `POST .../{key}/refresh`, `POST .../refresh`. 키 열거는 `CacheKeyEnumerable` 포트 + `TwoTierCache.keys()`(L1·L2 합집합, L2 prefix 환원).
+  - **로컬 시딩** `LocalCacheSeeder`: `./gradlew bootRun`(`local` 프로파일) 기동 직후 데모 사용자(`user-001`~`user-003`) 추천 캐시를 사전 적재 → 바로 `GET /admin/cache`에서 evict 가능한 키 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
+  - 의존성: `tools.jackson.module:jackson-module-kotlin` 추가(Spring Boot 4 관리 jackson-bom 3.1.2, GA). 테스트: `TwoTierCacheTest`·`CacheInvalidationServiceTest`·`CacheAdminControllerTest`·`CacheKeyVersionGeneratorTest`·`LocalCacheSeederTest`.
 - **관리 포트 분리(8080/8081) 근거 문서화** — 동작 변경 없음(주석·문서만).
   - `application.yml` — `server`/`management` 블록에 분리 이유 3가지(보안 격리·K8s 프로브 격리·리소스 격리)를 주석으로 명문화. 설정을 바꾸는 사람이 가장 먼저 보는 지점에 근거가 없던 누락 보완.
   - `docs/api/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
@@ -26,13 +30,6 @@
   - 입력 유스케이스 3종(`GetAssetSummaryUseCase`·`GetForeignStockPortfolioUseCase`·`GetRecommendedProductsUseCase`) 추가, `InvestmentDashboardService`가 4개 유스케이스를 구현하며 **집계가 도메인 유스케이스를 병렬 재사용**(중복 제거).
   - `ADR-008` 추가 — "단일 집계 API만으론 설계 제약(독립성·자원·속성별 최적화)과 충돌하는 이유"와 하이브리드 근거 명문화.
   - 테스트 `InvestmentResourceControllerTest`(7) 추가 — 총 **117개**.
-- **이중 캐시 (L1 Caffeine + L2 Mock Redis) 도입** — 추천 상품 캐시를 2계층으로 전환.
-  - `TwoTierCache` (`org.springframework.cache.Cache` 구현) — L1 hit→반환 / L1 miss·L2 hit→L1 승격 / 둘 다 miss→원본 호출 후 L1·L2 write-through. `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작.
-  - `DistributedCacheStore` 포트 + `MockRedisStore` (인메모리 Mock Redis: KV + TTL + Pub/Sub). 외부 의존성 없이 Redis 모사(GA 정책상 embedded-redis 회피). 실 환경은 Lettuce 구현으로 포트만 교체.
-  - L2는 Jackson 3로 **직렬화 저장** → `CacheKeyVersionGenerator`의 키 버전이 실효를 갖게 됨(직렬화 충돌 방지).
-  - 무효화가 **L1·L2 모두** 제거 + `MockRedisCacheEventPublisher`(빈 `redisCacheEventPublisher`) → `L1EvictionSubscriber` Pub/Sub으로 타 Pod L1 전파. `NoOpCacheEventPublisher`는 `@ConditionalOnMissingBean`으로 자동 비활성화.
-  - 의존성: `tools.jackson.module:jackson-module-kotlin` 추가 (Spring Boot 4 관리 jackson-bom 3.1.2, GA).
-  - 테스트 `TwoTierCacheTest`(8) 추가 — 총 **110개**.
 
 ### Changed
 - **문서 재구성 — 검토자 가독성 중심**. 거짓 정보 없이 실제 프로젝트 구성만 반영.
@@ -71,23 +68,6 @@
   - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 + 전용 섹션), `docs/ai/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai/ai-dev-guide.md`(시나리오 5)에 반영. "④~⑤만 자동화"라는 초기 부정확 표현을 전체 파이프라인 정의로 교정.
   - 스킬 구성 정리: `/self-review`·`/add-datasource`는 `/ship`이 호출하는 빌딩블록이자 단독 사용 가능 도구로 역할 명문화. `ship.md` ④에 add-datasource 경유 시 self-review 중복 실행 방지 명시.
   - `docs/template/prd-datasource-template.md`를 "권장(자연어로 줘도 ①요구사항분석이 보완)" 톤으로 보강.
-- 캐시 자동 키 버전 관리 (`CacheKeyVersionGenerator`)
-  - 클래스 구조(필드명+타입) SHA-256 해시를 캐시 이름에 자동 삽입
-  - `InvestmentProduct` 필드 변경 시 캐시 이름 자동 교체 — 사람이 버전 올릴 필요 없음
-  - `recommendations:v7a0fe702` 형태 (Redis 도입 시에도 동일 메커니즘)
-- 캐시 무효화·재갱신 인프라 (`CacheInvalidationService`, `CacheEventPublisher`, `CacheRefreshStrategy`)
-  - `evict(cacheName, key)` — 특정 키 즉시 무효화
-  - `evictAll(cacheName)` — 전체 무효화
-  - `evictAndRefresh(cacheName, key)` — 무효화 + 즉시 재갱신 (캐시 미스 없음)
-  - `NoOpCacheEventPublisher` — Redis Pub/Sub 연동 전 로그 출력 (인터페이스 준비 완료)
-  - `RecommendationCacheRefreshStrategy` — 추천 캐시 재갱신 전략 구현
-- 캐시 관리 Admin API (`CacheAdminController`)
-  - `GET /admin/cache` — 캐시 목록 조회
-  - `DELETE /admin/cache/{name}/{key}` — 특정 키 무효화
-  - `DELETE /admin/cache/{name}` — 전체 무효화
-  - `POST /admin/cache/{name}/{key}/refresh` — 무효화 + 즉시 재갱신
-  - `POST /admin/cache/{name}/refresh` — 전체 무효화 + 재갱신
-- 테스트 보강: `CacheKeyVersionGeneratorTest`(16), `CacheInvalidationServiceTest`(9), `CacheAdminControllerTest`(5) 추가
 - 버전 업그레이드
   - Spring Boot 4.0.1 → **4.0.6** (GA — 비-GA 안전 원칙에 따라 4.1.0-RC1 대신 채택)
   - Kotlin 2.3.0 → **2.3.21** (GA)
