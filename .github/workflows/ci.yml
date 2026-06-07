@@ -53,7 +53,7 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # ArchUnit(아키텍처 경계·코루틴 금지·CB 누락 방지)도 이 테스트 잡에서 함께 실행된다.
-      - name: Run tests (Kotest + ArchUnit, 102개)
+      - name: Run tests (Kotest + ArchUnit, 110개)
         run: ./gradlew test --no-daemon --stacktrace
 
       - name: Upload test report (실패 시)

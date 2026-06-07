@@ -7,9 +7,18 @@
 
 ## [Unreleased]
 
+### Added
+- **이중 캐시 (L1 Caffeine + L2 Mock Redis) 도입** — 추천 상품 캐시를 2계층으로 전환.
+  - `TwoTierCache` (`org.springframework.cache.Cache` 구현) — L1 hit→반환 / L1 miss·L2 hit→L1 승격 / 둘 다 miss→원본 호출 후 L1·L2 write-through. `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작.
+  - `DistributedCacheStore` 포트 + `MockRedisStore` (인메모리 Mock Redis: KV + TTL + Pub/Sub). 외부 의존성 없이 Redis 모사(GA 정책상 embedded-redis 회피). 실 환경은 Lettuce 구현으로 포트만 교체.
+  - L2는 Jackson 3로 **직렬화 저장** → `CacheKeyVersionGenerator`의 키 버전이 실효를 갖게 됨(직렬화 충돌 방지).
+  - 무효화가 **L1·L2 모두** 제거 + `MockRedisCacheEventPublisher`(빈 `redisCacheEventPublisher`) → `L1EvictionSubscriber` Pub/Sub으로 타 Pod L1 전파. `NoOpCacheEventPublisher`는 `@ConditionalOnMissingBean`으로 자동 비활성화.
+  - 의존성: `tools.jackson.module:jackson-module-kotlin` 추가 (Spring Boot 4 관리 jackson-bom 3.1.2, GA).
+  - 테스트 `TwoTierCacheTest`(8) 추가 — 총 **110개**.
+
 ### Fixed
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.
-- 문서 전반의 테스트 수 표기를 **102개**로 통일 (README·HELP·project-summary의 "101개" 정정 — `HexagonalArchitectureTest`는 ArchUnit 규칙 6개).
+- 문서 전반의 테스트 수 표기 정합성 정정 (README·HELP·project-summary의 "101개" → 실제 수치 동기화. `HexagonalArchitectureTest`는 ArchUnit 규칙 6개). 이중 캐시 도입 후 현재 총 **110개**.
 - `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
 - `HELP.md`의 Spring Boot 4.1 참조 링크를 **4.0** 으로 정정 (실제 채택 버전 일치).
 

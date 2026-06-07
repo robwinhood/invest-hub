@@ -37,7 +37,7 @@
 ```bash
 export JAVA_HOME=~/.jdks/corretto-25/Contents/Home
 
-./gradlew test          # 테스트 (102개)
+./gradlew test          # 테스트 (110개)
 ./gradlew bootRun       # 로컬 서버 (포트 8080, 관리 8081)
 ./gradlew build         # 전체 빌드
 ./gradlew formatKotlin  # 코드 포맷 자동 수정
@@ -116,7 +116,7 @@ application    ← 유스케이스 + 포트 인터페이스 + 서비스. domain�
 adapter/in/web       ← HTTP 진입점. Filter, Controller, DTO.
 adapter/in/lifecycle ← Spring 이벤트 진입점. WarmupInvoker, DashboardWarmer, StartupReadyTracker.
 adapter/out          ← 외부 시스템 연동. ResilientAdapter 또는 CachingResilientAdapter 상속.
-adapter/out/cache    ← 캐시 보조 인프라 (이벤트 발행·재갱신 전략). CB 패턴 불필요.
+adapter/out/cache    ← 캐시 인프라: TwoTierCache(L1+L2), MockRedisStore(L2), 이벤트 발행·구독·재갱신. CB 패턴 불필요.
 config         ← Spring Bean 설정. CacheConfig, CacheKeyVersionGenerator, VirtualThreadConfig.
 ```
 
@@ -275,10 +275,14 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 
 ## 캐시 규칙 (반드시 준수)
 
+- **이중 캐시 구조**: 추천 캐시는 `TwoTierCache` = L1(Caffeine) + L2(Mock Redis, `MockRedisStore`)다. `org.springframework.cache.Cache`를 구현하므로 `CachingResilientAdapter`·무효화 서비스는 변경 없이 동작한다.
+  - L2는 `DistributedCacheStore` 포트 뒤에 있다. 실 Redis 전환 시 이 포트의 Lettuce 구현만 추가하면 된다 (Mock은 GA 정책상 embedded-redis 대신 인메모리 구현).
+  - L2는 **직렬화 저장**(Jackson 3)이므로 캐시 키 자동 버전이 실효를 갖는다.
 - **캐시 이름은 직접 문자열로 쓰지 말 것.** `CacheKeyVersionGenerator.versionedName(baseName, KClass)`로 생성한다.
-  - 클래스 구조 해시가 키에 자동 삽입되어 필드 변경 시 키가 자동으로 바뀐다 (Redis 직렬화 충돌 방지).
+  - 클래스 구조 해시가 키에 자동 삽입되어 필드 변경 시 키가 자동으로 바뀐다 (L2 직렬화 충돌 방지).
 - 캐시 무효화·재갱신은 `CacheInvalidationService`를 통한다. 어댑터에서 직접 `cache.evict()` 호출 금지.
-- 분산 무효화가 필요하면 `CacheEventPublisher` 인터페이스를 구현한다 (현재 `NoOpCacheEventPublisher`, 향후 `RedisCacheEventPublisher`).
+  - 무효화는 **L1·L2 모두** 비우고, `MockRedisCacheEventPublisher` → `L1EvictionSubscriber` Pub/Sub으로 타 Pod L1까지 전파한다.
+- 분산 무효화 발행자는 현재 `MockRedisCacheEventPublisher`(빈 이름 `redisCacheEventPublisher`)가 활성. `NoOpCacheEventPublisher`는 `@ConditionalOnMissingBean`으로 자동 비활성화된다.
 - 새 캐시에 즉시 재갱신이 필요하면 `CacheRefreshStrategy`를 구현하고 `supports()`로 대상 캐시를 선언한다.
 
 ## 프로젝트 제약 사항
