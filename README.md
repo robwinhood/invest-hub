@@ -160,3 +160,5 @@ export JAVA_HOME=~/.jdks/corretto-25/Contents/Home   # Amazon Corretto 25 (또�
 | 변경 이력 | [CHANGELOG.md](CHANGELOG.md) |
 
 > 이 프로젝트는 **PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰** 5단계로 개발됐다. 1~4단계는 AI(Claude Code)가 자동 수행하고, 5단계(리뷰·머지)만 사람이 담당한다. 전체 흐름은 [docs/ai/ai-dev-workflow.md](docs/ai/ai-dev-workflow.md)에 정리되어 있다.
+
+<!-- mobile /ship roundtrip test (2026-06-07) — 검토 후 닫아도 무방 -->
