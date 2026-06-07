@@ -1,0 +1,139 @@
+spring:
+  application:
+    name: invest-hub
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: 8080
+  shutdown: graceful
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json
+    min-response-size: 1024
+  tomcat:
+    max-connections: 10000
+    accept-count: 1000
+    connection-timeout: 5s
+    keep-alive-timeout: 30s
+
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers,bulkheads,metrics,ratelimiters
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%X{requestId}/%X{userId}] [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.investhub: DEBUG
+
+invest-hub:
+  warmup:
+    enabled: true
+    repeat-count: 3
+
+resilience4j:
+  # ──────────────────────────────────────────────
+  # Rate Limiter
+  # 인스턴스당 최대 15K TPS. 버스트를 즉시 거부해 큐 적재와 GC 압박을 방지한다.
+  # ──────────────────────────────────────────────
+  ratelimiter:
+    instances:
+      dashboard:
+        register-health-indicator: true
+        limit-refresh-period: 1s
+        limit-for-period: 15000
+        timeout-duration: 0ms
+
+  # ──────────────────────────────────────────────
+  # Circuit Breaker
+  # configs.default: 새 어댑터가 portName만 선언해도 최소 보호가 보장된다 (휴먼 에러 방지).
+  # instances: default에서 데이터 소스별로 필요한 항목만 오버라이드한다.
+  # 슬라이딩 윈도우 100개: 100K TPS에서 안정적인 판단 기반 확보.
+  # ──────────────────────────────────────────────
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 100
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 80
+        slow-call-duration-threshold: 1000ms
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+    instances:
+      account:
+        base-config: default
+        slow-call-duration-threshold: 500ms
+      foreign-stock:
+        base-config: default
+        failure-rate-threshold: 40
+        slow-call-rate-threshold: 70
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+      recommendation:
+        base-config: default
+        failure-rate-threshold: 60
+        slow-call-duration-threshold: 800ms
+        wait-duration-in-open-state: 5s
+
+  # ──────────────────────────────────────────────
+  # Bulkhead (Semaphore)
+  # Little's Law 기준: 인스턴스당 15K TPS x 평균 응답 시간
+  #   account(avg 45ms)    : 15K x 0.045 = 675 -> 1,000
+  #   foreign-stock(avg 240ms): 15K x 0.24  = 3,600 -> 4,000
+  #   recommendation(cached): 2,000 (캐시 히트 시 거의 0ms)
+  # max-wait-duration: 0ms -> 즉시 거부, 대기 큐 없음.
+  # ──────────────────────────────────────────────
+  bulkhead:
+    configs:
+      default:
+        max-concurrent-calls: 1000
+        max-wait-duration: 0ms
+    instances:
+      account:
+        base-config: default
+      foreign-stock:
+        base-config: default
+        max-concurrent-calls: 4000
+      recommendation:
+        base-config: default
+        max-concurrent-calls: 2000
+
+  # ──────────────────────────────────────────────
+  # Time Limiter
+  # ──────────────────────────────────────────────
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 2s
+        cancel-running-future: true
+    instances:
+      account:
+        base-config: default
+      foreign-stock:
+        base-config: default
+        timeout-duration: 3s
+      recommendation:
+        base-config: default
+        timeout-duration: 1500ms

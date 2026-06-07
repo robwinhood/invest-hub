@@ -1,0 +1,101 @@
+plugins {
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.spring") version "2.3.21"
+    id("org.springframework.boot") version "4.0.6"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("org.jmailen.kotlinter") version "5.0.1"       // Ktlint: 포맷 강제 (main + test, GA)
+    // [정적 분석 도구 선택 — GA 안전 원칙]
+    // Detekt를 의도적으로 채택하지 않는다.
+    //   - Detekt GA(1.23.8)는 Kotlin 2.0.x 컴파일 → Kotlin 2.3.21과 바이너리 비호환
+    //   - Kotlin 2.3.21 지원 버전(2.0.0-alpha.x)은 alpha → 프로덕션 안전 원칙 위배
+    // 대안: Ktlint(GA, 포맷·스타일) + ArchUnit(GA, 아키텍처·코루틴 금지)로 품질 게이트 유지.
+    // Detekt 2.x가 GA로 출시되면 재검토한다.
+}
+
+group = "com.investhub"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+    maven { url = uri("https://repo.spring.io/milestone") }
+}
+
+val resilience4jVersion = "2.4.0"
+val kotestVersion = "6.1.11"
+val mockkVersion = "1.14.11"
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("com.github.ben-manes.caffeine:caffeine")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+    // Resilience4j — Spring Boot 4.x부터 resilience4j-spring-boot4 사용
+    implementation("io.github.resilience4j:resilience4j-spring-boot4:$resilience4jVersion")
+    implementation("io.github.resilience4j:resilience4j-kotlin:$resilience4jVersion")
+
+    // Kotlin Logging
+    implementation("io.github.oshai:kotlin-logging-jvm:8.0.4")
+
+    // Test
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
+    }
+    testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
+    testImplementation("io.kotest:kotest-assertions-core:$kotestVersion")
+    // kotest-extensions-spring 1.3.0은 Kotest 6.x와 바이너리 비호환.
+    // Spring 컨텍스트 테스트는 @ExtendWith(SpringExtension::class) 사용.
+    testImplementation("io.mockk:mockk:$mockkVersion")
+
+    // Architecture tests
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+    }
+}
+
+kotlinter {
+    ktlintVersion = "1.5.0"
+    reporters = arrayOf("checkstyle", "plain")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+// ──────────────────────────────────────────────────────────────
+// 코드 품질 태스크 (다중 개발자/AI 환경, 전부 GA 도구)
+//
+// 품질 검사 범위:
+//   lintKotlinMain — 메인 코드 Ktlint (포맷·스타일)
+//   lintKotlinTest — 테스트 코드 Ktlint (포맷·스타일)
+//   test           — 단위 테스트 + ArchUnit(아키텍처 경계·코루틴 금지·CB 누락 방지)
+// ──────────────────────────────────────────────────────────────
+
+// 포맷 자동 수정 (로컬 개발 중 파일 변경 허용)
+tasks.register("fix-all") {
+    group = "verification"
+    description = "formatKotlin + test — 포맷 자동 수정 후 테스트 (파일 수정됨)"
+    dependsOn("formatKotlin", "test")
+}
+
+// 전체 검증 (PR 전 필수, 파일 수정 없음)
+tasks.register("check-all") {
+    group = "verification"
+    description = "lintKotlin + test — PR 전 필수 (파일 수정 없음)"
+    dependsOn("lintKotlin", "test")
+}
