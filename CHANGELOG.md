@@ -10,6 +10,7 @@
 ### Added
 
 ### Changed
+- **CI/릴리즈 워크플로우 액션 버전 업** — Node.js 20 deprecation(2026-09-16 런너에서 제거) 대비. `actions/checkout` v4→v6, `actions/setup-java` v4→v5, `gradle/actions/setup-gradle` v4→v6, `actions/upload-artifact` v4→v7로 올려 Node 24 기반으로 전환. 빌드 산출물·릴리즈 동작 변화 없음.
 
 ### Fixed
 
