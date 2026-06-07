@@ -83,10 +83,9 @@ echo "current=$current  bump=$bump  next=$next  date=$TODAY"
 # 5) CHANGELOG 컷: 기존 '## [Unreleased]' 자리에 빈 [Unreleased] + 새 버전 헤딩을 끼움
 awk -v ver="$next" -v today="$TODAY" '
   /^## \[Unreleased\]/ && !done {
+    # 빈 [Unreleased]: 헤딩만 남긴다. 빈 ### Added/Changed/Fixed 스텁은 두지 않는다
+    # ("작성하다 만 것처럼" 보이는 문제). 작성 규칙은 파일 상단 안내문 참고.
     print "## [Unreleased]";  print ""
-    print "### Added";        print ""
-    print "### Changed";      print ""
-    print "### Fixed";        print ""
     print "---";              print ""
     print "## [" ver "] — " today
     done=1
