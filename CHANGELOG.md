@@ -87,6 +87,7 @@
 - `/ship`(`ship.md`)의 PR 생성 시 `--assignee "@me"`를 기본 적용 — PR Assignee를 현재 로그인 계정으로 자동 지정.
 - **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
 - 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-qna.md`·`CLAUDE.md`).
+- **미사용 Jackson 2 `jackson-module-kotlin` 의존성 제거** — Spring Boot 4.0은 Jackson 3(`tools.jackson`)을 쓰고 코드에 Jackson 2 `ObjectMapper`가 없어, `com.fasterxml.jackson.module:jackson-module-kotlin`(Jackson 2 Kotlin 모듈)은 사용되지 않던 leftover였다. 제거 후 `check-all`(133개) 전체 통과 확인. (`@JsonInclude` 등 annotation은 `jackson-annotations`에서 전이 제공되므로 영향 없음.)
 - **의존성 정책: GA(정식 릴리즈) 전용으로 확정.** RC·alpha·beta·SNAPSHOT 도입 금지를 `CLAUDE.md` 절대 금지 사항과 README에 명시.
 - Detekt **미채택 결정**: GA(1.23.8)는 Kotlin 2.3.21 비호환, Kotlin 2.3.21 지원 버전은 alpha뿐. 정적 분석 역할을 Ktlint(포맷)+ArchUnit(아키텍처·코루틴 금지)으로 분담. (관련 `detekt.yml`, `detekt-test.yml` 삭제)
 - ADR-007 추가 — 캐시 키 자동 버전 + 무효화·재갱신 설계
