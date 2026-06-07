@@ -54,7 +54,7 @@ X-User-Id: user-001
 ```json
 {
   "userId": "user-001",
-  "generatedAt": "2026-05-31T12:00:00.000000",
+  "generatedAt": "2026-06-06T12:00:00.000000",
   "totalAssetValueInKrw": 27048200,
   "assetSummary": {
     "status": "SUCCESS",
