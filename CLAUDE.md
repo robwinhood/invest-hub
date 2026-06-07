@@ -190,9 +190,9 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
 - `BulkheadRegistry.threadPoolBulkhead()` 사용 금지 — Virtual Thread 환경에서 의미 없음
 
 데이터 소스별 신뢰도:
-- 내부 원장: CB 50%, Bulkhead 100, TL 2s
-- 제휴사(외부): CB **40%**, Bulkhead **50**, TL **3s** (가장 엄격)
-- 추천 엔진: CB **60%**, Bulkhead 80, TL 1.5s (가장 관대)
+- 내부 원장: CB 50%, Bulkhead 1000, TL 2s
+- 제휴사(외부): CB **40%**, Bulkhead **4000**, TL **3s** (가장 엄격)
+- 추천 엔진: CB **60%**, Bulkhead 2000, TL 1.5s (가장 관대)
 
 ---
 
