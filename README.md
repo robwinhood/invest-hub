@@ -10,7 +10,7 @@
 ## 핵심 설계 의사결정 — Risk → 대책 → 최적화 → 검증
 
 > 이 프로젝트의 가장 중요한 부분은 코드 그 자체가 아니라 **"문제를 어떻게 구체화하고, 어떤 리스크를 식별했으며, 그 리스크를 막기 위해 어떤 구조를 선택했는가"** 의 의사결정 과정이다.
-> 아래 네 항목이 그 과정을 압축한 핵심 답변이며, 각 항목의 세부 근거는 [Architecture & Design Decisions](docs/architecture.md) · [ADR 문서](docs/adr/)에 연결된다.
+> 아래 네 항목이 그 과정을 압축한 핵심 답변이며, 각 항목의 세부 근거는 결정별 [ADR 문서](docs/adr/) · 구조/Q&A는 [docs/project-qna.md](docs/project-qna.md)에 연결된다.
 
 ### (1) 잠재적 위험 분석 — 상용 금융 플랫폼 관점
 
@@ -42,7 +42,7 @@
 | **R7** | **MDC(requestId·userId) 전 레이어 전파** + **어댑터별 스레드 명명** + **Actuator/Micrometer** | 가상 스레드는 ThreadLocal을 상속하지 않으므로 `supplyAsyncWithMdc()`로 명시 전파. 스레드 이름(`partner-vt-N`)만으로 장애 소스 즉시 식별. | `MdcFilter`, `InvestmentDashboardService`, `VirtualThreadConfig` |
 | **R8** | **ArchUnit 규칙**(레이어 경계·포트 인터페이스·순환 금지·**CB 누락 차단**·코루틴 금지) + **`CacheKeyVersionGenerator`** + **`configs.default` 안전망** | 외부 어댑터가 `ResilientAdapter`를 상속하지 않으면 **빌드 실패**. 캐시 대상 클래스 구조가 바뀌면 키 해시 자동 변경. 새 어댑터가 `portName`만 선언해도 기본 CB가 적용. | `HexagonalArchitectureTest`, `CacheKeyVersionGenerator` |
 
-> 각 대책의 코드 구조·다이어그램·상세 근거 → [Architecture & Design Decisions](docs/architecture.md)
+> 각 대책의 결정 배경 → [ADR 문서](docs/adr/) · 구조 다이어그램·패키지 위치 → [docs/project-qna.md (코드 구조 §5)](docs/project-qna.md#5-코드-구조--헥사고날-아키텍처)
 
 ### (3) 성능 및 자원 최적화 — 트래픽 증가·한계 상황 대비
 
@@ -81,7 +81,7 @@ $ ./gradlew check-all
 BUILD SUCCESSFUL
 ```
 
-> 클래스별 테스트 개수 전체 목록 → [Architecture & Design Decisions §4 Test Coverage](docs/architecture.md#4-test-coverage)
+> 클래스별 테스트 개수 전체 목록 → [docs/project-qna.md (테스트 현황)](docs/project-qna.md#테스트-현황)
 
 ---
 
@@ -101,7 +101,7 @@ BUILD SUCCESSFUL
 | CI | GitHub Actions (Lint → Test → Build) |
 | Build | Gradle 8 (Kotlin DSL) |
 
-> **의존성 정책**: 모든 라이브러리는 **GA(정식 릴리즈)** 만 사용한다. RC·alpha·beta·milestone·SNAPSHOT 금지 (프로덕션 안전성). 근거와 실제 사례: [Architecture & Design Decisions §5 의존성 버전 정책](docs/architecture.md#5-의존성-버전-정책-ga-전용).
+> **의존성 정책**: 모든 라이브러리는 **GA(정식 릴리즈)** 만 사용한다. RC·alpha·beta·milestone·SNAPSHOT 금지 (프로덕션 안전성). 근거·강제 방식: [CLAUDE.md (절대 금지 사항)](CLAUDE.md) · 실제 사례 Q&A: [docs/project-qna.md Q15·Q16](docs/project-qna.md).
 
 ---
 
@@ -137,8 +137,7 @@ export JAVA_HOME=~/.jdks/corretto-25/Contents/Home   # Amazon Corretto 25 (또�
 
 | 보고 싶은 것 | 문서 |
 |---|---|
-| **프로젝트를 처음 접하고, 설계 의사결정을 Q&A로 빠르게 파악** | **[docs/project-qna.md](docs/project-qna.md)** — 문서 안내 · 구현 워크스루 · 기술 선택 이유 · 설계 리뷰 Q&A 16문항 |
-| 아키텍처 전체 조망 · 설계 결정 상세 · 패키지 구조 · 테스트 목록 | [docs/architecture.md](docs/architecture.md) |
+| **프로젝트를 처음 접하고, 설계 의사결정을 Q&A로 빠르게 파악** | **[docs/project-qna.md](docs/project-qna.md)** — 문서 안내 · 구현 워크스루 · 아키텍처 다이어그램·패키지 구조 · 기술 선택 이유 · 테스트 현황 · 설계 리뷰 Q&A 16문항 |
 | 결정별 배경(WebFlux 대신 MVC, 코루틴 미사용 등) | [docs/adr/](docs/adr/) (ADR-001 ~ 008) |
 | HTTP API 명세 | [docs/api/api-reference.md](docs/api/api-reference.md) |
 | 환경 설정 · 새 데이터 소스 추가 실무 가이드 | [HELP.md](HELP.md) |

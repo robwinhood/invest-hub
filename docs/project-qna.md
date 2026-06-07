@@ -92,18 +92,6 @@
 
 ---
 
-#### `docs/architecture.md` — 아키텍처 & 설계 결정 상세
-
-**한 줄 설명**: 헥사고날 구조 전체 다이어그램 + 13개 설계 결정 상세 + 패키지 구조 + 테스트 목록 + 의존성 정책. README의 4대 핵심 답변을 뒷받침하는 깊이 있는 기술 레퍼런스.
-
-**언제 여는가**: "이 대책이 코드 어디에 어떻게 구현됐나", "패키지 구조가 어떻게 되나"를 확인할 때.
-
-```
-위치: docs/architecture.md
-```
-
----
-
 #### `docs/ai/ai-dev-workflow.md` — AI 개발 5단계 워크플로우 (가장 중요)
 
 **한 줄 설명**: "어떤 순서로 일하면 사람 손이 덜 드는가"를 정의한 문서. PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰의 5단계와, 각 단계를 자동화하는 장치가 정리되어 있다.
@@ -241,7 +229,7 @@
 새 기능 추가하고 싶을 때    docs/template/prd-datasource-template.md
 AI 사용법 모를 때           docs/ai/ai-dev-guide.md
 설계 결정 이유 궁금할 때    docs/adr/
-아키텍처·구조 상세 볼 때    docs/architecture.md
+아키텍처·패키지 구조 볼 때  이 문서 "핵심 구현 포인트 5가지 §5"
 PR 리뷰할 때                .github/pull_request_template.md (자동)
 배포 후 장애 추적           CHANGELOG.md
 AI가 이상하게 개발할 때     CLAUDE.md
@@ -330,7 +318,95 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 [안쪽] 순수 도메인 모델 (Spring 의존 없음)
 ```
 
-이 규칙을 사람이 지키는 게 아니라 **테스트가 자동으로 강제**한다. 위반하면 빌드 실패.
+이 규칙을 사람이 지키는 게 아니라 **테스트가 자동으로 강제**한다. 위반하면 빌드 실패. (경계 강제: `HexagonalArchitectureTest`(ArchUnit), 단일 모듈 근거: [ADR-005](adr/005-single-module.md))
+
+#### 전체 구조 다이어그램 (Ports & Adapters)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Driving Adapters (In)                   │
+│  web/      MdcFilter · RateLimiterFilter (필터)           │
+│            InvestmentDashboardController (집계 REST)       │
+│            Asset·ForeignStock·Recommendation Controller   │
+│              (도메인별 리소스 REST + 속성별 Cache-Control) │
+│            CacheAdminController (캐시 무효화·재갱신 REST)  │
+│            HealthController (startup·ready·live Probe)    │
+│  lifecycle/ WarmupInvoker (ApplicationReadyEvent 수신)    │
+│             DashboardWarmer · StartupReadyTracker         │
+├──────────────────────────────────────────────────────────┤
+│                    Application Core                       │
+│  Input Ports : GetInvestmentDashboardUseCase (집계)       │
+│                GetAssetSummary·ForeignStockPortfolio·     │
+│                RecommendedProducts UseCase (도메인별)      │
+│  Domain      : InvestmentDashboard · Sealed Results      │
+│                require() 불변식 — 생성 시점 입력값 차단   │
+│  Service     : InvestmentDashboardService                │
+│                WarmupService · CacheInvalidationService  │
+│  Output Ports: AccountPort · ForeignStockPort            │
+│                RecommendationPort · CacheEventPublisher  │
+│                DistributedCacheStore (L2 추상화)         │
+├──────────────────────────────────────────────────────────┤
+│                   Driven Adapters (Out)                   │
+│  ResilientAdapter<T>        — CB·Bulkhead·TL 템플릿       │
+│  CachingResilientAdapter<T> — 캐시 구조적 보장 템플릿      │
+│  ├── InternalAccountAdapter      (내부 원장 Mock)          │
+│  ├── PartnerForeignStockAdapter  (제휴사 API Mock)         │
+│  └── RecommendationEngineAdapter (추천 엔진 Mock + 캐시)   │
+│  cache/ TwoTierCache (L1 Caffeine + L2 Mock Redis)        │
+│         MockRedisStore (L2 + Pub/Sub) ·                   │
+│         MockRedisCacheEventPublisher · L1EvictionSubscriber│
+│         RecommendationCacheRefreshStrategy               │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 패키지 구조
+
+```
+src/main/kotlin/com/investhub/
+├── InvestHubApplication.kt
+├── config/
+│   ├── CacheConfig.kt                              # Caffeine 캐시 빈 (추천 5분 TTL)
+│   ├── CacheKeyVersionGenerator.kt                 # 클래스 구조 해시 → 캐시 키 자동 버전
+│   └── VirtualThreadConfig.kt                      # 어댑터별 독립 Virtual Thread Executor 빈
+├── domain/
+│   ├── account/AssetSummary.kt                     # 계좌·자산 도메인 모델 (require 검증)
+│   ├── stock/ForeignStockPortfolio.kt              # 해외 주식 도메인 모델 (require 검증)
+│   ├── product/InvestmentProduct.kt                # 추천 상품 도메인 모델 (require 검증)
+│   └── dashboard/InvestmentDashboard.kt            # Sealed Result 타입 + 집계 모델
+├── application/
+│   ├── port/input/                                 # 컨트롤러가 호출하는 유스케이스 (집계 + 도메인별)
+│   ├── port/output/                                # 어댑터가 구현하는 포트 (Port·CacheEventPublisher·DistributedCacheStore)
+│   └── service/
+│       ├── InvestmentDashboardService.kt           # 병렬 조회 + MDC 전파 + Partial Success
+│       ├── CacheInvalidationService.kt             # 캐시 무효화·재갱신 오케스트레이터
+│       ├── CacheRefreshStrategy.kt                 # 캐시 재갱신 전략 포트
+│       └── Warmer.kt · WarmupService.kt            # 웜업 추상화 + 오케스트레이션
+└── adapter/
+    ├── in/
+    │   ├── lifecycle/                              # Spring 이벤트 진입점
+    │   │   ├── WarmupInvoker.kt                    # ApplicationReadyEvent → 웜업 트리거
+    │   │   ├── DashboardWarmer.kt                  # Warmer 구현체 · 유스케이스 사전 호출
+    │   │   ├── StartupReadyTracker.kt              # 웜업→K8s Probe gap 메트릭 (NaN sentinel)
+    │   │   └── LocalCacheSeeder.kt                 # local 프로파일 추천 캐시 데모 시딩
+    │   └── web/                                    # HTTP 진입점 (필터·컨트롤러·DTO)
+    │       ├── filter/                             # MdcFilter · RateLimiterFilter
+    │       ├── dto/InvestmentDashboardResponse.kt  # Sealed → JSON (SectionStatus enum)
+    │       ├── SectionHttpStatus.kt                # FailureReason → HTTP 상태(503/504/429) 매핑
+    │       ├── GlobalExceptionHandler.kt           # RFC 7807 · 429 · 503 일관된 에러 응답
+    │       ├── HealthController.kt                 # /health/startup · /ready · /live Probe
+    │       ├── CacheAdminController.kt             # /admin/cache/** 무효화·재갱신 API
+    │       ├── AssetController · ForeignStockController · RecommendationController  # 도메인별 + 속성별 Cache-Control
+    │       └── InvestmentDashboardController.kt    # 집계
+    └── out/
+        ├── ResilientAdapter.kt                     # CB+Bulkhead+TL 템플릿 (실시간 어댑터용)
+        ├── CachingResilientAdapter.kt              # 캐시 구조적 보장 템플릿 (저실시간 어댑터용)
+        ├── internal/InternalAccountAdapter.kt      # 내부 원장 Mock (accountExecutor)
+        ├── partner/PartnerForeignStockAdapter.kt   # 제휴사 API Mock (partnerExecutor)
+        ├── recommendation/RecommendationEngineAdapter.kt  # 추천 엔진 Mock + 캐시
+        └── cache/                                  # TwoTierCache(L1+L2) · MockRedisStore · Pub/Sub 발행·구독 · 재갱신 전략
+```
+
+> 각 설계 결정의 *이유*는 [ADR 문서](adr/)에, 코드 컨벤션·금지 규칙은 [CLAUDE.md](../CLAUDE.md)에 있다.
 
 ---
 

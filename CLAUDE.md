@@ -37,7 +37,7 @@
 ```bash
 export JAVA_HOME=~/.jdks/corretto-25/Contents/Home
 
-./gradlew test          # 테스트 (129개)
+./gradlew test          # 테스트 (133개)
 ./gradlew bootRun       # 로컬 서버 (포트 8080, 관리 8081) — 'local' 프로파일 자동 활성화 → 추천 캐시 데모 시딩
 ./gradlew build         # 전체 빌드
 ./gradlew formatKotlin  # 코드 포맷 자동 수정
