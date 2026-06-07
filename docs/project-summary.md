@@ -162,6 +162,7 @@
 | `005-single-module.md` | 멀티모듈 대신 단일 모듈을 선택한 이유 |
 | `006-partial-success-sealed-class.md` | 하나 실패해도 나머지를 보여주는 방식의 이유 |
 | `007-cache-key-versioning-and-invalidation.md` | 캐시 키 자동 버전 + 무효화·재갱신 설계 |
+| `008-aggregate-plus-resource-endpoints.md` | **단일 집계 API만으론 부족한 이유** + 도메인별 엔드포인트·속성별 캐시 |
 
 ```
 위치: docs/adr/
@@ -354,7 +355,7 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 
 ## 테스트 현황
 
-총 **110개 테스트**, 전체 통과.
+총 **117개 테스트**, 전체 통과.
 
 | 테스트 클래스 | 개수 | 무엇을 검증하나 |
 |---|---|---|
@@ -362,7 +363,9 @@ Java 25의 **Virtual Thread**(가상 스레드)를 사용해서 세 요청을 �
 | `CacheKeyVersionGeneratorTest` | 16 | 클래스 구조 해시, 필드 변경 감지, 순환참조 |
 | `VirtualThreadIsolationTest` | 13 | 스레드 이름·격리·Virtual Thread·병렬성 |
 | `CacheInvalidationServiceTest` | 9 | 캐시 무효화·재갱신·이벤트 발행·예외 격리 |
-| `InvestmentDashboardControllerTest` | 7 | HTTP 요청/응답, 헤더, 금액 계산 |
+| `TwoTierCacheTest` | 8 | L1+L2 이중 캐시·직렬화·이중 무효화·Pub/Sub |
+| `InvestmentDashboardControllerTest` | 7 | 집계 HTTP 요청/응답, 헤더, 금액 계산 |
+| `InvestmentResourceControllerTest` | 7 | 도메인별 엔드포인트·속성별 Cache-Control·실패 상태(503/504/429) |
 | `HealthControllerTest` | 7 | Startup·Readiness·Liveness Probe |
 | `WarmupServiceTest` | 7 | 웜업 완료 상태·다중 Warmer·실패 허용 |
 | `HexagonalArchitectureTest` | 6 | 아키텍처 경계 + CB 누락 + 코루틴 금지 자동 감지 |
@@ -525,7 +528,7 @@ Redis 같은 영속 캐시에서 흔한 사고죠. 구 포맷 JSON과 새 클래
 
 ### 🧪 검증 & 안전성
 
-**Q14. 테스트 110개가 다 의미 있는 건가요, 숫자 채우기는 아닌가요?**
+**Q14. 테스트 117개가 다 의미 있는 건가요, 숫자 채우기는 아닌가요?**
 
 레이어별로 책임이 다릅니다. 단위 테스트(서비스 로직·도메인 검증), 통합 성격 테스트(캐시 히트/미스, Executor 격리), HTTP 계층(MockMvc), 그리고 **아키텍처 테스트(ArchUnit)**가 있습니다. 특히 "제휴사가 죽어도 나머지는 SUCCESS"나 "필드 추가 시 캐시 키 자동 변경" 같은 핵심 시나리오가 테스트로 박혀 있어, 리팩터링 시 회귀를 잡아줍니다.
 
