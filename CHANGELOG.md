@@ -16,9 +16,6 @@
   - **Cache Admin API** `CacheAdminController`: `GET /admin/cache`(엔트리 키까지 노출 — `{ caches:[{ name, baseName, entryCount, keys }], count }`로 이름/키 혼동 해소), `DELETE /admin/cache/{name}/{key}`, `DELETE /admin/cache/{name}`, `POST .../{key}/refresh`, `POST .../refresh`. 키 열거는 `CacheKeyEnumerable` 포트 + `TwoTierCache.keys()`(L1·L2 합집합, L2 prefix 환원).
   - **로컬 시딩** `LocalCacheSeeder`: `./gradlew bootRun`(`local` 프로파일) 기동 직후 데모 사용자(`user-001`~`user-003`) 추천 캐시를 사전 적재 → 바로 `GET /admin/cache`에서 evict 가능한 키 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
   - 의존성: `tools.jackson.module:jackson-module-kotlin` 추가(Spring Boot 4 관리 jackson-bom 3.1.2, GA). 테스트: `TwoTierCacheTest`·`CacheInvalidationServiceTest`·`CacheAdminControllerTest`·`CacheKeyVersionGeneratorTest`·`LocalCacheSeederTest`.
-- **관리 포트 분리(8080/8081) 근거 문서화** — 동작 변경 없음(주석·문서만).
-  - `application.yml` — `server`/`management` 블록에 분리 이유 3가지(보안 격리·K8s 프로브 격리·리소스 격리)를 주석으로 명문화. 설정을 바꾸는 사람이 가장 먼저 보는 지점에 근거가 없던 누락 보완.
-  - `docs/api/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
 - **API 명세 문서 분리 + 서버리스 인터랙티브 탐색기**.
   - `docs/api/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
   - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages 게시 완료 — **https://robwinhood.github.io/invest-hub/api/** 에서 접근(소스: `main`/`docs`).
@@ -81,12 +78,15 @@
 - **문서 재구성 — 검토자 가독성 중심**. 거짓 정보 없이 실제 프로젝트 구성만 반영.
   - `README.md`를 **과제 필수 답변 4항목**(① 잠재적 위험 분석 ② 아키텍처 의사결정·대책 ③ 성능·자원 최적화 ④ 신뢰성 검증 결과)에 집중하도록 재작성. 상세 설계 결정(13개)·헥사고날 다이어그램·패키지 구조·테스트 목록·의존성 정책 등 깊이 있는 내용은 **신규 `docs/architecture.md`** 로 이동하고 README에는 링크만 남김(중복 제거).
   - `docs/project-summary.md` → **`docs/project-qna.md`** 로 이름 변경(검토자 온보딩 + 설계 리뷰 Q&A 역할 반영). README "📖 문서 안내" 섹션에서 링크.
+- **관리 포트 분리(8080/8081) 근거 문서화** — 동작 변경 없음(주석·문서만).
+  - `application.yml` — `server`/`management` 블록에 분리 이유 3가지(보안 격리·K8s 프로브 격리·리소스 격리)를 주석으로 명문화. 설정을 바꾸는 사람이 가장 먼저 보는 지점에 근거가 없던 누락 보완.
+  - `docs/api/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
 - **README에 핵심 설계 의사결정 섹션 추가**: (1) 잠재적 위험 분석(R1–R8) (2) 리스크별 아키텍처 의사결정·대책 (3) 성능·자원 최적화 (4) 신뢰성 검증 결과(시나리오↔테스트 매핑)를 README 상단에 정리.
 - 코드 주석·문서의 내부 프로젝트/티켓 참조를 일반화 (`StartupReadyTracker`, `CacheKeyVersionGenerator`, ADR-007).
-- `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
+- `docs/project-qna.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
 - `/ship`(`ship.md`)의 PR 생성 시 `--assignee "@me"`를 기본 적용 — PR Assignee를 현재 로그인 계정으로 자동 지정.
 - **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
-- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
+- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-qna.md`·`CLAUDE.md`).
 - **의존성 정책: GA(정식 릴리즈) 전용으로 확정.** RC·alpha·beta·SNAPSHOT 도입 금지를 `CLAUDE.md` 절대 금지 사항과 README에 명시.
 - Detekt **미채택 결정**: GA(1.23.8)는 Kotlin 2.3.21 비호환, Kotlin 2.3.21 지원 버전은 alpha뿐. 정적 분석 역할을 Ktlint(포맷)+ArchUnit(아키텍처·코루틴 금지)으로 분담. (관련 `detekt.yml`, `detekt-test.yml` 삭제)
 - ADR-007 추가 — 캐시 키 자동 버전 + 무효화·재갱신 설계
@@ -103,7 +103,7 @@
 - PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
 - PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정.
-- `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
+- `docs/project-qna.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
 - `HELP.md`의 Spring Boot 4.1 참조 링크를 **4.0** 으로 정정 (실제 채택 버전 일치).
 
 ---
