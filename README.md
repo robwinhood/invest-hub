@@ -7,6 +7,21 @@
 
 ---
 
+## 과제 3대 요구사항 → 충족 방식 (한눈에 보기)
+
+> 과제가 요구한 **세 가지 설계 항목**을, 이 프로젝트가 **어디서·무엇으로 충족했고 어떻게 코드로 증명했는지** 한 표로 매핑한다.
+> 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 코드 R1~R8)과 [ADR 문서](docs/adr/)로 이어진다.
+
+| 과제 요구사항 | 한 줄 답 | 핵심 메커니즘 | 코드로 증명 | 상세 |
+|---|---|---|---|---|
+| **① 서비스 독립성 확보**<br>특정 데이터 영역의 장애·지연이 전체 및 정상 도메인에 전파되지 않을 것 | 장애를 **섹션 단위로 격리** — 한 소스가 죽어도 나머지 섹션은 정상 응답한다 | 어댑터별 **전용 Virtual Thread Executor**(장애 풀 격리) + **CB→Bulkhead→TimeLimiter** 3단 차단 + **Partial Success(Sealed Result)** | `InvestmentDashboardServiceTest`(부분 실패), `VirtualThreadIsolationTest`(executor 격리) | (2) R1·R4 · [ADR-003](docs/adr/003-resilient-adapter-pattern.md)·[ADR-006](docs/adr/006-partial-success-sealed-class.md) |
+| **② 효율적인 리소스 통제**<br>불특정 다수의 대규모 요청에서 시스템 자원 효율을 극대화할 것 | 블로킹해도 **OS 스레드를 점유하지 않고**, 입구·동시성 **이중 상한**으로 폭주를 차단한다 | **Virtual Thread** + **Semaphore Bulkhead**(Little's Law로 산정) + **글로벌 RateLimiter**(15K TPS·`timeout 0ms` 즉시 429) | `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`(429/503), `VirtualThreadIsolationTest`(가상 스레드) | (3) R2 · [ADR-001](docs/adr/001-spring-mvc-over-webflux.md) |
+| **③ 데이터 속성별 처리 최적화**<br>도메인별 비즈니스 가치·실시간성에 맞는 가공·제어 방식 | 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 *구조로 강제*한다(누락 불가) | **`ResilientAdapter`**(실시간·캐시 배제) vs **`CachingResilientAdapter`**(저실시간·L1+L2 캐시 자동) + **속성별 `Cache-Control`** | `CachingResilientAdapterTest`(히트/미스), `TwoTierCacheTest`(L1+L2), `InvestmentResourceControllerTest`(속성별 Cache-Control) | (3) R3 · [ADR-004](docs/adr/004-caching-resilient-adapter.md)·[ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md) |
+
+> 세 항목 모두 **"런타임 점검"이 아니라 "컴파일·빌드 시점의 구조적 강제"** 로 보장한다는 것이 이 설계의 일관된 원칙이다(R8 — ArchUnit이 CB 누락·레이어 위반을 빌드에서 차단). 전체 검증 결과는 아래 [(4) 신뢰성 검증 결과](#4-신뢰성-검증-결과--최악-시나리오를-코드로-증명) 참고.
+
+---
+
 ## 핵심 설계 의사결정 — Risk → 대책 → 최적화 → 검증
 
 > 이 프로젝트의 가장 중요한 부분은 코드 그 자체가 아니라 **"문제를 어떻게 구체화하고, 어떤 리스크를 식별했으며, 그 리스크를 막기 위해 어떤 구조를 선택했는가"** 의 의사결정 과정이다.
