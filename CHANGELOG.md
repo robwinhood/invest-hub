@@ -8,6 +8,16 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [0.4.0] — 2026-06-07
+
+### Added
 - **자동 릴리즈에 GitHub Release 발행 추가** — `release.yml`이 `vX.Y.Z` 태그를 만든 직후, CHANGELOG의 `[X.Y.Z]` 섹션을 릴리즈 노트로 하여 GitHub Release를 자동 생성한다(`gh release create … --latest`). 기존엔 태그까지만 자동이고 Release(발표 페이지)는 수동이었다.
 
 ### Changed
