@@ -1,0 +1,70 @@
+name: Release
+
+# 완전 자동 릴리즈:
+#   main 에 머지(=push)되면 → CHANGELOG [Unreleased]에 쌓인 변경을 보고
+#   버전을 자동 산정하여 컷하고, build.gradle.kts·CHANGELOG를 동기화한 뒤
+#   chore(release): vX.Y.Z 커밋 + vX.Y.Z 태그를 자동으로 만들어 push 한다.
+#   → 사람은 평소처럼 [Unreleased]에 항목만 적으면 되고, 버전/태그는 손대지 않는다.
+#
+#   올릴 변경이 없으면([Unreleased]가 비어 있으면) 아무 일도 일어나지 않는다.
+
+on:
+  push:
+    branches: [main]
+
+# 릴리즈 커밋과 태그를 저장소에 push 하려면 쓰기 권한이 필요하다.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Cut version & tag
+    runs-on: ubuntu-latest
+    # 봇이 만든 릴리즈 커밋(chore(release):)이 자기 자신을 다시 트리거하는 무한 루프 방지.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 태그/이력 전체 필요
+
+      # CI(ci.yml)와 동일한 빌드 환경 정책: 런처 21 + toolchain 25
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: |
+            25
+            21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # 1) 버전 산정 + CHANGELOG/gradle 컷 (커밋·태그는 아직 안 함)
+      - name: Compute & cut version
+        id: cut
+        run: |
+          bash scripts/release.sh
+          if [ -f .release-version ]; then
+            echo "version=$(cat .release-version)" >> "$GITHUB_OUTPUT"
+            rm -f .release-version
+          else
+            echo "올릴 변경 없음 — 릴리즈 스킵"
+          fi
+
+      # 2) 품질 게이트 — 올릴 게 있을 때만. 실패하면 커밋/태그 없이 워크플로우 실패.
+      - name: check-all gate
+        if: ${{ steps.cut.outputs.version != '' }}
+        run: ./gradlew check-all --no-daemon --stacktrace
+
+      # 3) 커밋 + 태그 + push (올릴 게 있고 게이트 통과했을 때만)
+      - name: Commit, tag & push
+        if: ${{ steps.cut.outputs.version != '' }}
+        run: |
+          V="${{ steps.cut.outputs.version }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md build.gradle.kts
+          git commit -m "chore(release): v$V"
+          git tag -a "v$V" -m "Release v$V"
+          git push origin HEAD:main
+          git push origin "v$V"
+          echo "✅ Released v$V"
