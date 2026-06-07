@@ -9,34 +9,15 @@
 
 ## 과제 3대 요구사항 → 충족 방식 (한눈에 보기)
 
-> 과제가 요구한 **세 가지 설계 항목**을, 이 프로젝트가 **어디서·무엇으로 충족했고 어떻게 코드로 증명했는지** 한 표로 매핑한다.
-> 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 코드 R1~R8)과 [ADR 문서](docs/adr/)로 이어진다.
+> 과제 「나. 시스템 설계 및 제약 조건」의 세 항목을, **무엇으로 충족하고 어떤 테스트로 증명했는지** 한 표로 요약한다. 세부 근거는 바로 아래 「핵심 설계 의사결정 (1)~(4)」(리스크 R1~R8)와 [ADR 문서](docs/adr/)로 이어진다.
 
-### ① 서비스 독립성 확보
-> 특정 데이터 영역의 장애·지연이 전체 및 정상 도메인에 전파되지 않을 것
+| 요구사항 | 한 줄 답 | 핵심 메커니즘 | 코드로 증명 |
+|---|---|---|---|
+| **① 서비스 독립성**<br>장애가 정상 도메인에 전파되지 않을 것 | 장애를 **섹션 단위로 격리** — 한 소스가 죽어도 나머지는 정상 응답 | 어댑터별 전용 VT Executor + CB→Bulkhead→TimeLimiter + Partial Success(Sealed Result) | `InvestmentDashboardServiceTest`·`VirtualThreadIsolationTest` |
+| **② 리소스 통제**<br>대규모 요청에서 자원 효율 극대화 | 블로킹해도 **OS 스레드 비점유**, 입구·동시성 **이중 상한**으로 폭주 차단 | Virtual Thread + Semaphore Bulkhead(Little's Law) + 글로벌 RateLimiter(15K TPS·즉시 429) | `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`·`VirtualThreadIsolationTest` |
+| **③ 속성별 처리**<br>도메인별 실시간성에 맞는 제어 | 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 구조로 강제(누락 불가) | `ResilientAdapter`(실시간) vs `CachingResilientAdapter`(저실시간 L1+L2) + 속성별 Cache-Control | `CachingResilientAdapterTest`·`TwoTierCacheTest`·`InvestmentResourceControllerTest` |
 
-- **한 줄 답** — 장애를 **섹션 단위로 격리**. 한 소스가 죽어도 나머지 섹션은 정상 응답한다.
-- **핵심 메커니즘** — 어댑터별 **전용 Virtual Thread Executor**(장애 풀 격리) + **CB→Bulkhead→TimeLimiter** 3단 차단 + **Partial Success(Sealed Result)**
-- **코드로 증명** — `InvestmentDashboardServiceTest`(부분 실패) · `VirtualThreadIsolationTest`(executor 격리)
-- **상세** — (2) R1·R4 · [ADR-003](docs/adr/003-resilient-adapter-pattern.md) · [ADR-006](docs/adr/006-partial-success-sealed-class.md)
-
-### ② 효율적인 리소스 통제
-> 불특정 다수의 대규모 요청에서 시스템 자원 효율을 극대화할 것
-
-- **한 줄 답** — 블로킹해도 **OS 스레드를 점유하지 않고**, 입구·동시성 **이중 상한**으로 폭주를 차단한다.
-- **핵심 메커니즘** — **Virtual Thread** + **Semaphore Bulkhead**(Little's Law로 산정) + **글로벌 RateLimiter**(15K TPS·`timeout 0ms` 즉시 429)
-- **코드로 증명** — `GlobalExceptionHandlerTest`·`CacheAdminControllerTest`(429/503) · `VirtualThreadIsolationTest`(가상 스레드)
-- **상세** — (3) R2 · [ADR-001](docs/adr/001-spring-mvc-over-webflux.md)
-
-### ③ 데이터 속성별 처리 최적화
-> 도메인별 비즈니스 가치·실시간성에 맞는 가공·제어 방식
-
-- **한 줄 답** — 실시간/저실시간을 **타입으로 분리**해 캐시 정책을 *구조로 강제*한다(누락 불가).
-- **핵심 메커니즘** — **`ResilientAdapter`**(실시간·캐시 배제) vs **`CachingResilientAdapter`**(저실시간·L1+L2 캐시 자동) + **속성별 `Cache-Control`**
-- **코드로 증명** — `CachingResilientAdapterTest`(히트/미스) · `TwoTierCacheTest`(L1+L2) · `InvestmentResourceControllerTest`(속성별 Cache-Control)
-- **상세** — (3) R3 · [ADR-004](docs/adr/004-caching-resilient-adapter.md) · [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md)
-
-> 세 항목 모두 **"런타임 점검"이 아니라 "컴파일·빌드 시점의 구조적 강제"** 로 보장한다는 것이 이 설계의 일관된 원칙이다(R8 — ArchUnit이 CB 누락·레이어 위반을 빌드에서 차단). 전체 검증 결과는 아래 [(4) 신뢰성 검증 결과](#4-신뢰성-검증-결과--최악-시나리오를-코드로-증명) 참고.
+> 세 항목 모두 **"런타임 점검"이 아니라 "컴파일·빌드 시점의 구조적 강제"** 로 보장한다(R8 — ArchUnit이 CB 누락·레이어 위반을 빌드에서 차단). 각 항목의 상세 근거(리스크 분석·결정 배경·최적화·검증) → 바로 아래 (1)~(4).
 
 ---
 
@@ -199,7 +180,7 @@ export JAVA_HOME=~/.jdks/corretto-25/Contents/Home   # Amazon Corretto 25 (또�
 
 | 보고 싶은 것 | 문서 |
 |---|---|
-| **프로젝트를 처음 접하고, 설계 의사결정을 Q&A로 빠르게 파악** | **[docs/project-qna.md](docs/project-qna.md)** — 문서 안내 · 구현 워크스루 · 아키텍처 다이어그램·패키지 구조 · 기술 선택 이유 · 테스트 현황 · 설계 리뷰 Q&A 16문항 |
+| **프로젝트를 처음 접하고, 설계 의사결정을 Q&A로 빠르게 파악** | **[docs/project-qna.md](docs/project-qna.md)** — 구현 포인트 5가지 · 아키텍처 다이어그램·패키지 구조 · 기술 선택 이유 · 테스트 현황 · 설계 리뷰 Q&A 16문항 |
 | 결정별 배경(WebFlux 대신 MVC, 코루틴 미사용 등) | [docs/adr/](docs/adr/) (ADR-001 ~ 008) |
 | HTTP API 명세 | [docs/api/api-reference.md](docs/api/api-reference.md) |
 | 환경 설정 · 새 데이터 소스 추가 실무 가이드 | [HELP.md](HELP.md) |
