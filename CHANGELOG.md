@@ -10,6 +10,16 @@
 ### Added
 
 ### Changed
+
+### Fixed
+
+---
+
+## [0.4.3] — 2026-06-07
+
+### Added
+
+### Changed
 - **API Explorer 목 서버 주소를 자명하게 변경** — Swagger UI에 표시되던 가짜 서버 호스트 `demo.invest-hub.local`을 `in-browser-mock.invalid`로 교체. `.local`이 "로컬 서버 아닌가" 하고 직접 접속을 유도해 혼란을 줬던 문제를 해소. `.invalid`(RFC 2606 예약 TLD)는 절대 resolve되지 않아 "직접 접속 불가 = 정상"이 이름만으로 드러난다. `openapi.yaml` server url·description과 `index.html`의 `MOCK_HOST`(fetch 가로채기 기준값)를 함께 동기화. 목 동작 변화 없음.
 
 ### Fixed
