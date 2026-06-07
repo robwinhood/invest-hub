@@ -25,6 +25,7 @@
 
 ### Fixed
 - PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
+- PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.
 - 문서 전반의 테스트 수 표기 정합성 정정 (README·HELP·project-summary의 "101개" → 실제 수치 동기화. `HexagonalArchitectureTest`는 ArchUnit 규칙 6개). 이중 캐시 도입 후 현재 총 **110개**.
 - `docs/project-summary.md` Q3의 "Detekt가 코루틴을 차단한다" 오기재를 **ArchUnit `noCoroutineUsage`** 로 정정 (Detekt는 미채택).
@@ -34,6 +35,7 @@
 - **README에 핵심 설계 의사결정 섹션 추가**: (1) 잠재적 위험 분석(R1–R8) (2) 리스크별 아키텍처 의사결정·대책 (3) 성능·자원 최적화 (4) 신뢰성 검증 결과(시나리오↔테스트 매핑)를 README 상단에 정리.
 - 코드 주석·문서의 내부 프로젝트/티켓 참조를 일반화 (`StartupReadyTracker`, `CacheKeyVersionGenerator`, ADR-007).
 - `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
+- **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
 
 ### Added
 - AI 개발 워크플로우 5단계 도입 (PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰)

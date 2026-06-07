@@ -18,7 +18,10 @@ $ARGUMENTS
    - `src/main/kotlin/com/investhub/adapter/out/internal/InternalAccountAdapter.kt` (ResilientAdapter 예시)
    - `src/main/kotlin/com/investhub/adapter/out/recommendation/RecommendationEngineAdapter.kt` (CachingResilientAdapter 예시)
    - `src/main/kotlin/com/investhub/domain/dashboard/InvestmentDashboard.kt` (Sealed Result 패턴)
-   - `src/main/kotlin/com/investhub/application/service/InvestmentDashboardService.kt` (병렬 조회 패턴)
+   - `src/main/kotlin/com/investhub/application/service/InvestmentDashboardService.kt` (유스케이스 구현 + 집계 재사용 패턴)
+   - `src/main/kotlin/com/investhub/application/port/input/GetAssetSummaryUseCase.kt` (입력 유스케이스 패턴)
+   - `src/main/kotlin/com/investhub/adapter/in/web/AssetController.kt` (도메인 단독 엔드포인트 + 속성별 Cache-Control 패턴)
+   - `src/main/kotlin/com/investhub/adapter/in/web/SectionHttpStatus.kt` (FailureReason → HTTP 상태 매핑)
    - `src/main/kotlin/com/investhub/adapter/in/web/dto/InvestmentDashboardResponse.kt` (섹션 DTO 패턴)
    - `src/main/resources/application.yml` (Resilience4j 설정 구조 파악)
 
@@ -185,35 +188,87 @@ sealed class {SectionName}Result {
 }
 ```
 
-### STEP 6 — InvestmentDashboardService.kt 병렬 조회 추가
+### STEP 6 — Input UseCase 인터페이스 (도메인 단독 조회)
+
+**경로**: `src/main/kotlin/com/investhub/application/port/input/Get{SectionName}UseCase.kt`
+
+도메인별 단독 엔드포인트(ADR-008)를 위해 입력 유스케이스를 정의한다. **Sealed Result를 반환**해 집계·단독 호출이 동일한 부분 실패 처리를 공유한다.
+
+```kotlin
+interface Get{SectionName}UseCase {
+    fun get{SectionName}(userId: String): {SectionName}Result
+}
+```
+
+### STEP 7 — InvestmentDashboardService.kt (유스케이스 구현 + 집계 재사용)
 
 `src/main/kotlin/com/investhub/application/service/InvestmentDashboardService.kt`를 읽고 수정한다.
 
-1. 생성자에 새 포트를 추가한다.
-2. `getDashboard()`에 `supplyAsyncWithMdc()` 호출을 추가한다.
-3. `fetch{SectionName}()` private 함수를 추가한다.
+1. 클래스 선언에 `Get{SectionName}UseCase`를 구현 인터페이스로 추가한다.
+2. 생성자에 새 포트를 추가한다.
+3. **공개** `override fun get{SectionName}()`을 추가한다(기존 도메인 유스케이스들과 동일 패턴).
+4. `getDashboard()`가 이 유스케이스를 `supplyAsyncWithMdc { get{SectionName}(userId) }`로 **재사용**한다(중복 금지).
 
 ```kotlin
-// 생성자에 추가
-private val {섹션}Port: {SectionName}Port,
+// 클래스 선언에 추가
+class InvestmentDashboardService(
+    ...,
+    private val {섹션}Port: {SectionName}Port,
+) : GetInvestmentDashboardUseCase,
+    ...,
+    Get{SectionName}UseCase {
 
-// getDashboard() 내에 추가 (기존 Future들과 함께 병렬 실행)
-val {섹션}Future = supplyAsyncWithMdc { fetch{SectionName}(userId) }
+    // 공개 유스케이스 구현 (컨트롤러 + 집계가 함께 재사용)
+    override fun get{SectionName}(userId: String): {SectionName}Result =
+        runCatching {
+            {SectionName}Result.Success({섹션}Port.getPortfolio(userId))
+        }.getOrElse { ex ->
+            log.warn(ex) { "{이름} 조회 실패" }
+            {SectionName}Result.Failure(ex.toFailureReason())
+        }
 
-// InvestmentDashboard 생성 시 추가
-{섹션필드명} = {섹션}Future.join(),
-
-// private 함수 추가
-private fun fetch{SectionName}(userId: String): {SectionName}Result =
-    runCatching {
-        {SectionName}Result.Success({섹션}Port.getPortfolio(userId))
-    }.getOrElse { ex ->
-        log.warn(ex) { "{이름} 조회 실패" }
-        {SectionName}Result.Failure(ex.toFailureReason())
-    }
+    // getDashboard() 내 — 위 유스케이스를 병렬 재사용
+    val {섹션}Future = supplyAsyncWithMdc { get{SectionName}(userId) }
+    // InvestmentDashboard 생성 시: {섹션필드명} = {섹션}Future.join(),
+}
 ```
 
-### STEP 7 — InvestmentDashboardResponse.kt 섹션 DTO 추가
+### STEP 8 — 도메인 단독 리소스 컨트롤러 (속성별 Cache-Control)
+
+**경로**: `src/main/kotlin/com/investhub/adapter/in/web/{SectionName}Controller.kt`
+
+집계(`/dashboard`)와 별개로 이 도메인만 독립 조회·갱신하는 엔드포인트를 추가한다(ADR-008). 기존 `AssetController.kt`를 참고한다.
+
+- 성공 → `200` + 섹션 DTO + **데이터 속성별 `Cache-Control`**:
+  - **실시간성 높음** → `CacheControl.noStore()`
+  - **실시간성 낮음** → `CacheControl.maxAge(Duration.ofMinutes({TTL})).cachePrivate()` (HTTP TTL을 캐시 TTL과 정렬)
+- 실패 → `result.reason.toHttpStatus()`(기존 `SectionHttpStatus.kt` 재사용: CIRCUIT_OPEN/SERVICE_UNAVAILABLE→503, TIMEOUT→504, RESOURCE_EXHAUSTED→429) + 섹션 DTO + `noStore()`
+
+```kotlin
+@RestController
+@RequestMapping("/api/v1/investment")
+class {SectionName}Controller(
+    private val get{SectionName}UseCase: Get{SectionName}UseCase,
+) {
+    @GetMapping("/{resource}")               // 예: /domestic-etfs
+    fun get{SectionName}(
+        @RequestHeader("X-User-Id") userId: String,
+    ): ResponseEntity<{SectionName}SectionResponse> {
+        val result = get{SectionName}UseCase.get{SectionName}(userId)
+        val body = {SectionName}SectionResponse.from(result)
+        return when (result) {
+            is {SectionName}Result.Success ->
+                ResponseEntity.ok()
+                    .cacheControl(/* 실시간성 높음: noStore() / 낮음: maxAge(...).cachePrivate() */)
+                    .body(body)
+            is {SectionName}Result.Failure ->
+                ResponseEntity.status(result.reason.toHttpStatus()).cacheControl(CacheControl.noStore()).body(body)
+        }
+    }
+}
+```
+
+### STEP 9 — InvestmentDashboardResponse.kt 섹션 DTO 추가
 
 `src/main/kotlin/com/investhub/adapter/in/web/dto/InvestmentDashboardResponse.kt`를 읽고 수정한다.
 
@@ -227,29 +282,35 @@ private fun fetch{SectionName}(userId: String): {SectionName}Result =
 - `failureReason: String?`
 - 성공 시 데이터 필드들 (`@JsonInclude(NON_NULL)`)
 
-### STEP 8 — 테스트 작성
+### STEP 10 — 테스트 작성
 
-#### 8-1. 도메인 검증 테스트
+#### 10-1. 도메인 검증 테스트
 
 `InvestmentDashboardServiceTest.kt`의 "도메인 모델 — 검증" describe 블록에 추가한다.
 PRD에 검증 조건이 명시된 필드마다 `shouldThrow<IllegalArgumentException>` 케이스를 추가한다.
 
-#### 8-2. 서비스 테스트
+#### 10-2. 서비스 테스트
 
 `InvestmentDashboardServiceTest.kt`에 새 데이터 소스 관련 케이스를 추가한다:
 - 새 소스가 성공일 때 전체 SUCCESS
 - 새 소스가 실패해도 나머지는 SUCCESS
 - 세 소스가 모두 성공할 때 새 소스도 포함됨
 
-#### 8-3. 컨트롤러 테스트
+#### 10-3. 집계 컨트롤러 테스트
 
 `InvestmentDashboardControllerTest.kt`에 추가:
 - 정상 응답에 새 섹션이 포함됨
 - 새 섹션 FAILURE 시 해당 필드에 `failureReason` 포함
 
-#### 8-4. 캐시 테스트 (CachingResilientAdapter인 경우)
+#### 10-4. 도메인 단독 리소스 컨트롤러 테스트
 
-`CachingResilientAdapterTest.kt`가 이미 패턴을 검증하므로 별도 추가 불필요.
+`InvestmentResourceControllerTest.kt`에 추가(기존 패턴 그대로):
+- 성공 → `200` + 데이터 + **속성별 `Cache-Control` 헤더**(실시간성 높음 `no-store` / 낮음 `private, max-age={TTL*60}`)
+- 실패 → 매핑된 상태(예: CIRCUIT_OPEN→`503`, TIMEOUT→`504`, RESOURCE_EXHAUSTED→`429`)
+
+#### 10-5. 캐시 테스트 (CachingResilientAdapter인 경우)
+
+`CachingResilientAdapterTest.kt`·`TwoTierCacheTest.kt`가 이미 패턴을 검증하므로 별도 추가 불필요.
 
 ---
 
