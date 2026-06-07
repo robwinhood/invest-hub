@@ -9,6 +9,7 @@
 > 사람 리뷰(⑤) 전에 AI 자동 단계가 끝났는지 확인한다. 자세한 흐름: `docs/ai-dev-workflow.md`
 
 - [ ] ① PRD 정의됨 (양식 또는 자연어 요구사항)
+- [ ] ② 설계 방향 결정 (`CLAUDE.md`·`docs/adr/` 준수, 필요 시 새 ADR 작성)
 - [ ] ③ 개발 + 테스트 작성 완료
 - [ ] ④ `/self-review` 실행 완료 → 아래 "자가 검토 보고서" 첨부
 - [ ] `./gradlew check-all` 통과 (CI에서 자동 재검증)
