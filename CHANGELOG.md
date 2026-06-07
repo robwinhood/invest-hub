@@ -14,9 +14,9 @@
 - **로컬 구동 시 추천 캐시 자동 시딩** — `./gradlew bootRun`이 `local` 프로파일로 떠서 `LocalCacheSeeder`가 데모 사용자(`user-001`~`user-003`) 추천 캐시를 기동 직후 사전 적재한다. 기동 직후 바로 `GET /admin/cache`에서 evict 가능한 키를 확인·시험 가능. (Swagger 탐색기는 백엔드 없는 브라우저 목이라 무관하게 정적 Mock 유지.)
 - **관리 포트 분리(8080/8081) 근거 문서화** — 동작 변경 없음(주석·문서만).
   - `application.yml` — `server`/`management` 블록에 분리 이유 3가지(보안 격리·K8s 프로브 격리·리소스 격리)를 주석으로 명문화. 설정을 바꾸는 사람이 가장 먼저 보는 지점에 근거가 없던 누락 보완.
-  - `docs/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
+  - `docs/api/api-reference.md` §5 — "왜 8080이 아니라 8081인가" 설명 추가. `README.md` — 관리 포트 분리 셀에 보안·프로브 격리 근거 보강.
 - **API 명세 문서 분리 + 서버리스 인터랙티브 탐색기**.
-  - `docs/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
+  - `docs/api/api-reference.md` 신규 — 전체 HTTP 엔드포인트(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator) 단일 명세. README의 `## API` 섹션 본문은 제거하고 이 문서 링크만 남김(중복 제거).
   - `docs/api/` 신규 — **백엔드 없이 동작하는 인터랙티브 API 탐색기**. Swagger UI(CDN) + `openapi.yaml` + 브라우저 내 목(`window.fetch` 인터셉트). "Try it out" 시 실제 서버 대신 invest-hub의 결정적 Mock 응답을 반환(외부 시스템이 전부 Mock이라 가능). GitHub Pages 게시 완료 — **https://robwinhood.github.io/invest-hub/api/** 에서 접근(소스: `main`/`docs`).
   - Actuator 호스트 표기 정정: 관리 포트 **8081**(기존 README 예시의 8080은 `management.server.port`와 불일치).
 - **하이브리드 API — 집계 엔드포인트 + 도메인별 리소스 엔드포인트** (ADR-008).
@@ -36,7 +36,7 @@
 
 ### Fixed
 - **Cache Admin `DELETE` 응답 정확도**: 특정 키 무효화 시 실제 제거 여부를 반영해 `status`를 `evicted`(실제 지움) 또는 `not_found`(원래 부재)로 구분. 이전에는 키가 없어도 무조건 `evicted`로 응답해, evict가 동작한 것처럼 보이던 오인을 유발. `Cache.evictIfPresent`/`DistributedCacheStore.evictIfPresent` 기반으로 L1·L2 양쪽의 실제 존재 여부를 판정.
-- PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
+- PR 템플릿의 "AI 자동 단계 완료 확인(워크플로우 ①~④)" 체크리스트에 누락돼 있던 **②(설계) 항목 추가**. 헤더는 "①~④"로 명시하면서 정작 ②만 빠져 있어 `docs/ai/ai-dev-workflow.md`의 5단계 정의와 불일치하던 문제 정정.
 - PR 템플릿에서 "①~④" 헤더와 어긋나던 **5번째 체크(`check-all`)를 ④의 하위 검증 항목으로 들여쓰기** — 번호 없는 5번째 peer처럼 보이던 불일치 정정(check-all은 별도 단계가 아니라 ④의 검증 게이트).
 - **CI 파이프라인 복구**: `.github/workflows/ci.yml`이 존재하지 않는 `detektMain`/`detektTest` 태스크를 호출해 lint 잡이 항상 실패하던 문제 수정 (Detekt 미채택 결정과 불일치). `lintKotlin` → `test`(Kotest + ArchUnit) 구조로 정정, 잘못된 테스트 수 표기("71개") 제거.
 - 문서 전반의 테스트 수 표기 정합성 정정 (README·HELP·project-summary의 "101개" → 실제 수치 동기화. `HexagonalArchitectureTest`는 ArchUnit 규칙 6개). 이중 캐시 도입 후 현재 총 **110개**.
@@ -49,18 +49,18 @@
 - `docs/project-summary.md`의 서술 톤을 프로젝트 리뷰 문서에 맞게 정리.
 - `/ship`(`ship.md`)의 PR 생성 시 `--assignee "@me"`를 기본 적용 — PR Assignee를 현재 로그인 계정으로 자동 지정.
 - **`/add-datasource` 스킬을 하이브리드 API 패턴으로 갱신**(PR #6 반영, STEP 8→10): ① 입력 유스케이스(`Get{X}UseCase`, Sealed Result 반환) 생성 단계 + ② 도메인 단독 리소스 컨트롤러(`{X}Controller`, 속성별 `Cache-Control`, `SectionHttpStatus` 재사용) 생성 단계 추가, ③ 서비스 단계를 'private fetch'에서 '공개 유스케이스 구현 + 집계가 병렬 재사용'으로 교정, ④ 리소스 컨트롤러 테스트 추가. 참고 파일 목록에 `AssetController`·`GetAssetSummaryUseCase`·`SectionHttpStatus` 추가.
-- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai-dev-workflow.md`·`docs/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
+- 워크플로우 문서의 "**8개 파일** 자동 생성" 표기를 하이브리드 반영 후 실제 수치(**약 10개**: 도메인·포트·어댑터·설정·Result·서비스·응답 DTO·입력 유스케이스·도메인 리소스 컨트롤러·테스트)로 정정 (`docs/ai/ai-dev-workflow.md`·`docs/ai/ai-dev-guide.md`·`docs/project-summary.md`·`CLAUDE.md`).
 
 ### Added
 - AI 개발 워크플로우 5단계 도입 (PRD → 설계 → 개발+테스트 → 비판적 검토 → 사람 리뷰)
-  - `docs/ai-dev-workflow.md` — 전체 프로세스·단계별 자동화 장치 명문화
+  - `docs/ai/ai-dev-workflow.md` — 전체 프로세스·단계별 자동화 장치 명문화
   - `.claude/commands/self-review.md` — 비판적 자가 검토 skill (④단계)
   - `/add-datasource` skill에 ④ 자가 검토 단계 통합
   - PR 템플릿에 "AI 자동 단계 완료 + 자가 검토 보고서" 섹션 추가
 - `/ship` skill (`.claude/commands/ship.md`) — **PRD에서 PR까지 전체 개발 파이프라인 자동화**. PRD를 주면 `①요구사항분석 → ②설계(필요 시 ADR) → ③개발+테스트(/add-datasource 활용) → ④자가검토(/self-review) → check-all → commit → push → ⑤PR 생성`을 한 번에 오케스트레이션한다. **적응형**(이미 끝난 단계는 건너뜀 — 코드가 다 됐으면 ④부터 "마무리 모드"). 리뷰·승인·머지(⑤ 본질)는 사람 몫이며 "머지까지" 지시 시 CI 통과 확인 후 자동 머지. 보호 브랜치엔 직접 커밋하지 않고 피처 브랜치를 자동 생성, `gh` 미인증·`check-all` 실패 시 중단하는 가드레일 포함.
-  - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 + 전용 섹션), `docs/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai-dev-guide.md`(시나리오 5)에 반영. "④~⑤만 자동화"라는 초기 부정확 표현을 전체 파이프라인 정의로 교정.
+  - `/ship` 사용법 안내를 `CLAUDE.md`(워크플로우 + 전용 섹션), `docs/ai/ai-dev-workflow.md`(⑤단계 + 자동화 장치 표), `docs/ai/ai-dev-guide.md`(시나리오 5)에 반영. "④~⑤만 자동화"라는 초기 부정확 표현을 전체 파이프라인 정의로 교정.
   - 스킬 구성 정리: `/self-review`·`/add-datasource`는 `/ship`이 호출하는 빌딩블록이자 단독 사용 가능 도구로 역할 명문화. `ship.md` ④에 add-datasource 경유 시 self-review 중복 실행 방지 명시.
-  - `docs/prd-datasource-template.md`를 "권장(자연어로 줘도 ①요구사항분석이 보완)" 톤으로 보강.
+  - `docs/template/prd-datasource-template.md`를 "권장(자연어로 줘도 ①요구사항분석이 보완)" 톤으로 보강.
 - 캐시 자동 키 버전 관리 (`CacheKeyVersionGenerator`)
   - 클래스 구조(필드명+타입) SHA-256 해시를 캐시 이름에 자동 삽입
   - `InvestmentProduct` 필드 변경 시 캐시 이름 자동 교체 — 사람이 버전 올릴 필요 없음
@@ -123,8 +123,8 @@
 - `GlobalExceptionHandler` — RFC 7807 Problem Details 형식 일관된 에러 응답
 - `GlobalExceptionHandlerTest` — 에러 응답 형식 검증 (33번째 테스트)
 - `CHANGELOG.md` — 변경 이력 관리
-- `docs/ai-dev-guide.md` — AI 자동 개발·운영 활용 가이드
-- `docs/prd-datasource-template.md` — skill 사용법 포함 상세 PRD 가이드
+- `docs/ai/ai-dev-guide.md` — AI 자동 개발·운영 활용 가이드
+- `docs/template/prd-datasource-template.md` — skill 사용법 포함 상세 PRD 가이드
 
 ### Changed
 - `application.yml` — Graceful Shutdown 설정 추가 (`server.shutdown: graceful`)
@@ -138,7 +138,7 @@
 - `CLAUDE.md` — AI 세션 간 컨텍스트 유지를 위한 가이드 문서
 - `docs/adr/` — 설계 결정 기록 6개 (ADR-001 ~ ADR-006)
 - `.claude/commands/add-datasource.md` — 새 데이터 소스 자동 생성 skill
-- `docs/prd-datasource-template.md` — PRD 작성 가이드 및 템플릿
+- `docs/template/prd-datasource-template.md` — PRD 작성 가이드 및 템플릿
 - `CachingResilientAdapter<T>` — 저실시간 어댑터의 캐시 구조적 보장
 - `CacheConfig` — Caffeine 캐시 (추천 상품 5분 TTL)
 - `HexagonalArchitectureTest` — ArchUnit 기반 아키텍처 경계 강제 (4개 규칙)

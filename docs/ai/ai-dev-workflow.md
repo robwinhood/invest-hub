@@ -26,7 +26,7 @@
 **무엇을**: "무엇을 만들지"를 구조화된 양식으로 적는다.
 
 **어떻게**:
-- 새 데이터 소스 추가 → `docs/prd-datasource-template.md` 양식을 채운다.
+- 새 데이터 소스 추가 → `docs/template/prd-datasource-template.md` 양식을 채운다.
 - 그 외 기능 → 자연어로 요구사항을 적되, "성공 조건"과 "실패 시 동작"을 명시한다.
 
 **산출물**: 채워진 PRD (양식 또는 자연어)
@@ -97,7 +97,7 @@
 
 | 단계 | 장치 | 역할 |
 |---|---|---|
-| ① PRD | `docs/prd-datasource-template.md` | 요구사항 양식 |
+| ① PRD | `docs/template/prd-datasource-template.md` | 요구사항 양식 |
 | ② 설계 | `CLAUDE.md`, `docs/adr/` | AI가 따를 원칙·결정 기록 |
 | ③ 개발 | `.claude/commands/add-datasource.md` | 약 10개 파일 자동 생성 skill (집계 + 도메인 엔드포인트) |
 | ④ 검토 | `.claude/commands/self-review.md` | 비판적 자가 검토 skill |

@@ -31,7 +31,7 @@
 
 **1단계: PRD 채우기**
 
-`docs/prd-datasource-template.md`를 열어 양식을 복사한다.
+`docs/template/prd-datasource-template.md`를 열어 양식을 복사한다.
 데이터 소스 이름, 필드, 실시간성, Mock 데이터를 채운다.
 
 **2단계: Claude Code에 입력**
@@ -208,7 +208,7 @@ CI가 실패하면 PR에 빨간불이 뜬다. Merge 불가.
 | 목적 | 파일 |
 |---|---|
 | AI에게 프로젝트 규칙 알려주기 | `CLAUDE.md` |
-| 새 기능 추가 PRD 작성 | `docs/prd-datasource-template.md` |
+| 새 기능 추가 PRD 작성 | `docs/template/prd-datasource-template.md` |
 | 설계 결정 기록 확인 | `docs/adr/` |
 | PR 리뷰 체크리스트 | `.github/pull_request_template.md` |
 | CI 파이프라인 정의 | `.github/workflows/ci.yml` |

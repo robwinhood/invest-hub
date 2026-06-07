@@ -152,7 +152,7 @@ BUILD SUCCESSFUL
 
 전체 HTTP 엔드포인트 명세(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator)는 별도 문서로 분리했다.
 
-- 📄 **명세 문서** → **[docs/api-reference.md](docs/api-reference.md)**
+- 📄 **명세 문서** → **[docs/api/api-reference.md](docs/api/api-reference.md)**
 - 🧪 **인터랙티브 API 탐색기** (서버 없이 브라우저에서 Try it out) → **https://robwinhood.github.io/invest-hub/api/** (소스: [docs/api/](docs/api/index.html))
 
 요약: 비즈니스 API는 `X-User-Id` 헤더가 필수이며, 집계 `GET /api/v1/investment/dashboard`는 부분 실패를 200+`status`로, 도메인별 엔드포인트(`/assets`·`/foreign-stocks`·`/recommendations`)는 데이터 속성별 `Cache-Control`과 HTTP 상태 코드로 표현한다. 설계 근거는 [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md).
@@ -574,4 +574,4 @@ RC·alpha·beta·milestone·SNAPSHOT 등 검증이 끝나지 않은 버전은 �
 ```
 
 `/ship`이 이 **AI 자동 구간 전체(①요구사항 분석 ~ ⑤PR 생성)** 를 한 번에 끌고 간다(적응형 — 이미 끝난 단계는 건너뜀). 사람은 PRD 제공과 **리뷰·승인·머지**(⑤의 본질)에만 리소스를 쓴다.
-전체 흐름과 각 단계의 자동화 장치는 [`docs/ai-dev-workflow.md`](docs/ai-dev-workflow.md)에 정리되어 있다.
+전체 흐름과 각 단계의 자동화 장치는 [`docs/ai/ai-dev-workflow.md`](docs/ai/ai-dev-workflow.md)에 정리되어 있다.
