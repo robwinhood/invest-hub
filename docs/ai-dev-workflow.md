@@ -56,7 +56,7 @@
 **무엇을**: 코드와 테스트를 함께 작성한다. 테스트 없는 코드는 미완성으로 본다.
 
 **어떻게**:
-- 새 데이터 소스 → `/add-datasource` skill에 PRD를 넣으면 8개 파일(도메인·포트·어댑터·설정·DTO·서비스 연결·테스트)이 자동 생성된다.
+- 새 데이터 소스 → `/add-datasource` skill에 PRD를 넣으면 약 10개 파일(도메인·포트·어댑터·설정·Sealed Result·서비스·응답 DTO·**입력 유스케이스·도메인 리소스 컨트롤러**·테스트)이 자동 생성된다. (집계 + 도메인별 엔드포인트 모두, ADR-008)
 - 그 외 → 헥사고날 레이어 순서(domain → port → service → adapter)로 작성하고 각 레이어 테스트를 동반한다.
 
 **산출물**: 컴파일·동작하는 코드 + 테스트
@@ -99,7 +99,7 @@
 |---|---|---|
 | ① PRD | `docs/prd-datasource-template.md` | 요구사항 양식 |
 | ② 설계 | `CLAUDE.md`, `docs/adr/` | AI가 따를 원칙·결정 기록 |
-| ③ 개발 | `.claude/commands/add-datasource.md` | 8파일 자동 생성 skill |
+| ③ 개발 | `.claude/commands/add-datasource.md` | 약 10개 파일 자동 생성 skill (집계 + 도메인 엔드포인트) |
 | ④ 검토 | `.claude/commands/self-review.md` | 비판적 자가 검토 skill |
 | ④ 검토 | ArchUnit | 아키텍처·코루틴 금지·CB 누락 자동 차단 |
 | ④ 검토 | Ktlint | 포맷·스타일 자동 강제 |

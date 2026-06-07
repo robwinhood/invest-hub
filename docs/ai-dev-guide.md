@@ -58,13 +58,15 @@ AI가 코드를 생성하고 테스트를 돌린 뒤 PR을 만들면,
 | AI가 만드는 파일 | 역할 |
 |---|---|
 | `domain/{이름}/` | 데이터 구조 정의 + 입력값 자동 검증 |
-| `application/port/output/` | 연결 인터페이스 |
+| `application/port/output/` | 연결 인터페이스 (Out-Port) |
+| `application/port/input/Get{이름}UseCase` | 도메인 단독 조회 유스케이스 (입력 포트) |
 | `adapter/out/{이름}/` | 실제 외부 시스템 연동 (현재는 Mock) |
 | `application.yml` 항목 추가 | 장애 대응 설정 (차단기, 격벽, 타이머) |
 | `InvestmentDashboard.kt` 수정 | 응답 구조에 새 섹션 추가 |
-| `InvestmentDashboardService.kt` 수정 | 병렬 조회 로직 추가 |
+| `InvestmentDashboardService.kt` 수정 | 유스케이스 구현 + 집계 병렬 재사용 |
 | `InvestmentDashboardResponse.kt` 수정 | JSON 응답 필드 추가 |
-| 테스트 3종 추가 | 정상/실패/부분실패 검증 |
+| `{이름}Controller` 추가 | 도메인 단독 엔드포인트 + 속성별 Cache-Control (ADR-008) |
+| 테스트 추가 | 정상/실패/부분실패 + 리소스 엔드포인트(상태·캐시) 검증 |
 
 ---
 
