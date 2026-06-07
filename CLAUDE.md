@@ -37,8 +37,8 @@
 ```bash
 export JAVA_HOME=~/.jdks/corretto-25/Contents/Home
 
-./gradlew test          # 테스트 (117개)
-./gradlew bootRun       # 로컬 서버 (포트 8080, 관리 8081)
+./gradlew test          # 테스트 (129개)
+./gradlew bootRun       # 로컬 서버 (포트 8080, 관리 8081) — 'local' 프로파일 자동 활성화 → 추천 캐시 데모 시딩
 ./gradlew build         # 전체 빌드
 ./gradlew formatKotlin  # 코드 포맷 자동 수정
 ./gradlew lintKotlin    # 포맷 검사 (CI에서 실행)
@@ -285,6 +285,7 @@ it("세 포트를 각자 다른 가상 스레드에서 호출한다") {
   - 무효화는 **L1·L2 모두** 비우고, `MockRedisCacheEventPublisher` → `L1EvictionSubscriber` Pub/Sub으로 타 Pod L1까지 전파한다.
 - 분산 무효화 발행자는 현재 `MockRedisCacheEventPublisher`(빈 이름 `redisCacheEventPublisher`)가 활성. `NoOpCacheEventPublisher`는 `@ConditionalOnMissingBean`으로 자동 비활성화된다.
 - 새 캐시에 즉시 재갱신이 필요하면 `CacheRefreshStrategy`를 구현하고 `supports()`로 대상 캐시를 선언한다.
+- **이름(컨테이너) vs 키(엔트리) 구분**: `GET /admin/cache`의 `name`(예: `recommendations:v7a0fe702`)은 캐시 이름이고 `:v…`는 클래스 구조 해시 버전이다(키 아님). 그 안의 `keys`(예: `user-001`)가 evict 대상. 엔트리를 evict해도 캐시 이름 목록은 변하지 않는다. 키 열거는 `CacheKeyEnumerable`(TwoTierCache가 구현)이 제공한다.
 
 ## 프로젝트 제약 사항
 

@@ -179,8 +179,8 @@ TTL 만료를 기다리지 않고 캐시를 즉시 무효화·재갱신한다. M
 
 | Method | 경로 | 동작 | 응답 |
 |---|---|---|---|
-| `GET` | `/admin/cache` | 등록된 캐시 목록 조회 (버전 해시 포함) | `{ caches: [...], count }` |
-| `DELETE` | `/admin/cache/{cacheName}/{key}` | 특정 키 무효화 | `{ status: "evicted", cache, key }` |
+| `GET` | `/admin/cache` | 등록된 캐시 목록 + **엔트리 키** 조회 | `{ caches: [{ name, baseName, entryCount, keys }], count }` |
+| `DELETE` | `/admin/cache/{cacheName}/{key}` | 특정 키 무효화 | `{ status: "evicted"\|"not_found", cache, key }` |
 | `POST` | `/admin/cache/{cacheName}/{key}/refresh` | 특정 키 무효화 + 즉시 재갱신 | `{ status: "evicted_and_refreshed", cache, key }` |
 | `DELETE` | `/admin/cache/{cacheName}` | 전체 무효화 | `{ status: "evicted_all", cache }` |
 | `POST` | `/admin/cache/{cacheName}/refresh` | 전체 무효화 + 재갱신 | `{ status: "evicted_all_and_refreshed", cache }` |
@@ -188,7 +188,7 @@ TTL 만료를 기다리지 않고 캐시를 즉시 무효화·재갱신한다. M
 **예시**
 
 ```bash
-# 등록된 캐시 목록 조회 (버전 해시 포함)
+# 등록된 캐시 목록 + 엔트리 키 조회
 curl http://localhost:8080/admin/cache
 
 # 특정 사용자 캐시 무효화
@@ -200,6 +200,10 @@ curl -X POST http://localhost:8080/admin/cache/recommendations/user-001/refresh
 # 전체 무효화
 curl -X DELETE http://localhost:8080/admin/cache/recommendations
 ```
+
+> **이름(컨테이너) vs 키(엔트리)**: `GET /admin/cache`의 `name`(예: `recommendations:v7a0fe702`)은 캐시 이름이고, 그 안의 `keys`(예: `user-001`)가 evict 대상이다. `:v7a0fe702`는 키가 아니라 클래스 구조 해시 버전이다. 따라서 `DELETE`로 엔트리를 지워도 캐시 **이름** 목록은 변하지 않는다(컨테이너는 그대로, 안의 엔트리만 비워짐). 키가 실제로 없으면 `DELETE` 응답은 `not_found`다.
+>
+> **로컬 구동 시 캐시 시딩**: `./gradlew bootRun`은 `local` 프로파일로 떠서 데모 사용자(`user-001`~`user-003`)의 추천 캐시를 기동 직후 사전 적재한다. 그래서 바로 `GET /admin/cache`로 evict 가능한 키를 확인하고 시험할 수 있다. (위 Swagger 탐색기는 백엔드가 없는 브라우저 목이라 이 시딩과 무관하게 정적 Mock을 사용한다.)
 
 > 프로덕션에서는 이 엔드포인트를 API Gateway IP 화이트리스트 또는 내부망으로 제한해야 한다.
 

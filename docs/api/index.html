@@ -71,7 +71,7 @@
       ["GET", /\/api\/v1\/investment\/foreign-stocks$/, () => ({ cacheControl: "no-store", json: STOCKS })],
       ["GET", /\/api\/v1\/investment\/recommendations$/, () => ({ cacheControl: "private, max-age=300", json: RECO })],
 
-      ["GET", /\/admin\/cache$/, () => ({ json: { caches: ["recommendations::v3a9f1c2"], count: 1 } })],
+      ["GET", /\/admin\/cache$/, () => ({ json: { caches: [{ name: "recommendations:v3a9f1c2", baseName: "recommendations", entryCount: 3, keys: ["user-001", "user-002", "user-003"] }], count: 1 } })],
       ["POST", /\/admin\/cache\/([^/]+)\/([^/]+)\/refresh$/, (m) => ({ json: { status: "evicted_and_refreshed", cache: m[1], key: m[2] } })],
       ["DELETE", /\/admin\/cache\/([^/]+)\/([^/]+)$/, (m) => ({ json: { status: "evicted", cache: m[1], key: m[2] } })],
       ["POST", /\/admin\/cache\/([^/]+)\/refresh$/, (m) => ({ json: { status: "evicted_all_and_refreshed", cache: m[1] } })],

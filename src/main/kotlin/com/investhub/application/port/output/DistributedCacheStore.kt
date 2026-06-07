@@ -26,8 +26,20 @@ interface DistributedCacheStore {
     /** 단일 키를 제거한다. */
     fun evict(key: String)
 
+    /**
+     * 단일 키를 제거하고, **실제로 제거되었는지** 반환한다.
+     * (키가 없었거나 TTL이 만료된 상태였으면 false — 어드민 evict 응답의 정확도용.)
+     */
+    fun evictIfPresent(key: String): Boolean
+
     /** prefix로 시작하는 모든 키를 제거한다 (캐시 전체 무효화용). */
     fun evictByPrefix(prefix: String)
+
+    /**
+     * prefix로 시작하는(만료되지 않은) 키 목록을 반환한다.
+     * 실제 Redis의 `SCAN`/`KEYS prefix*`에 대응하는 운영 조회용 연산이다.
+     */
+    fun keysByPrefix(prefix: String): Set<String>
 
     /** 현재 보관 중인 엔트리 수 (관측/테스트용). */
     fun size(): Int

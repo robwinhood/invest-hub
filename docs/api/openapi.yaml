@@ -5,10 +5,10 @@ info:
   description: |
     세 가지 이질적 데이터 소스(내부 원장 · 제휴사 해외주식 · 추천 엔진)를 단일 엔드포인트로 통합하는 투자 대시보드 API.
 
-    > **이 문서는 서버 없이 동작합니다.** "Try it out"을 누르면 실제 백엔드 대신 브라우저 안의 목(mock)이
-    > 이 프로젝트가 반환하는 결정적 Mock 응답을 그대로 돌려줍니다. (invest-hub의 외부 시스템이 모두 Mock이라 가능)
-    >
-    > 모든 비즈니스 API는 `X-User-Id` 헤더가 필요합니다. 임의 값(`user-001` 등)이면 됩니다.
+    **이 문서는 서버 없이 동작합니다.** "Try it out"을 누르면 실제 백엔드 대신 브라우저 안의 목(mock)이
+    이 프로젝트가 반환하는 결정적 Mock 응답을 그대로 돌려줍니다. (invest-hub의 외부 시스템이 모두 Mock이라 가능)
+
+    모든 비즈니스 API는 `X-User-Id` 헤더가 필요합니다. 임의 값(`user-001` 등)이면 됩니다.
 
 servers:
   - url: https://demo.invest-hub.local
@@ -143,24 +143,35 @@ paths:
   /admin/cache:
     get:
       tags: [Cache Admin]
-      summary: 등록된 캐시 목록
+      summary: 등록된 캐시 목록 (엔트리 키 포함)
+      description: |
+        각 항목의 `name`은 캐시 이름(버전 해시 포함), `keys`는 그 안에 실제로 들어 있는 evict 가능한 키 목록이다.
+        `name`(컨테이너)과 `keys`(엔트리)는 다른 개념이며, 엔트리를 evict해도 캐시 이름 목록 자체는 바뀌지 않는다.
       responses:
         '200':
-          description: 캐시 목록 (버전 해시 포함)
+          description: 캐시 목록 (이름·기본 이름·엔트리 키)
           content:
             application/json:
-              example: { caches: ["recommendations::v3a9f1c2"], count: 1 }
+              example:
+                caches:
+                  - name: "recommendations:v3a9f1c2"
+                    baseName: recommendations
+                    entryCount: 3
+                    keys: [user-001, user-002, user-003]
+                count: 1
 
   /admin/cache/{cacheName}/{key}:
     delete:
       tags: [Cache Admin]
       summary: 특정 키 무효화
+      description: |
+        `status`는 실제로 지웠으면 `evicted`, 원래 그 키가 없었으면 `not_found`다.
       parameters:
         - { name: cacheName, in: path, required: true, schema: { type: string }, example: recommendations }
         - { name: key, in: path, required: true, schema: { type: string }, example: user-001 }
       responses:
         '200':
-          description: 무효화 완료
+          description: 무효화 처리 결과 (evicted 또는 not_found)
           content:
             application/json:
               example: { status: evicted, cache: recommendations, key: user-001 }

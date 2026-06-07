@@ -111,7 +111,52 @@ class TwoTierCacheTest :
             }
         }
 
+        describe("TwoTierCache — 키 열거 / 정확한 evict") {
+            it("keys는 L1·L2 합집합을 원래 키로 환원해 반환한다") {
+                val (cache, _) = build()
+                cache.put("user-001", sampleProducts())
+                cache.put("user-002", sampleProducts())
+
+                cache.keys() shouldBe setOf("user-001", "user-002")
+            }
+
+            it("L1이 비어 L2에만 있어도 keys에 포함된다 (prefix 환원)") {
+                val (cache, _) = build()
+                cache.put("user-001", sampleProducts())
+                cache.evictLocalOnly("user-001") // L1만 비움
+
+                cache.keys() shouldBe setOf("user-001")
+            }
+
+            it("evictIfPresent는 키가 있으면 true, 없으면 false를 반환한다") {
+                val (cache, _) = build()
+                cache.put("user-001", sampleProducts())
+
+                cache.evictIfPresent("user-001") shouldBe true
+                cache.evictIfPresent("user-001") shouldBe false // 이미 제거됨
+                cache.evictIfPresent("never-existed") shouldBe false
+            }
+        }
+
         describe("MockRedisStore — Mock Redis 동작") {
+            it("evictIfPresent는 키 존재 여부를 정확히 반환한다") {
+                val redis = MockRedisStore()
+                redis.put("k", byteArrayOf(1), 300)
+
+                redis.evictIfPresent("k") shouldBe true
+                redis.evictIfPresent("k") shouldBe false
+            }
+
+            it("keysByPrefix는 prefix로 시작하는 만료되지 않은 키만 반환한다") {
+                val redis = MockRedisStore()
+                redis.put("recommendations::user-A", byteArrayOf(1), 300)
+                redis.put("recommendations::user-B", byteArrayOf(2), 300)
+                redis.put("other::user-C", byteArrayOf(3), 300)
+
+                redis.keysByPrefix("recommendations::") shouldBe
+                    setOf("recommendations::user-A", "recommendations::user-B")
+            }
+
             it("evictByPrefix는 prefix로 시작하는 키만 제거한다") {
                 val redis = MockRedisStore()
                 redis.put("recommendations::user-A", byteArrayOf(1), 300)

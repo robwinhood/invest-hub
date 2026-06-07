@@ -1,9 +1,25 @@
 package com.investhub.application.service
 
 import com.investhub.application.port.output.CacheEventPublisher
+import com.investhub.application.port.output.CacheKeyEnumerable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
+
+/**
+ * 어드민 캐시 목록 조회용 단건 정보.
+ *
+ * @param name       버전 해시를 포함한 실제 캐시 이름 (예: "recommendations:v7a0fe702").
+ * @param baseName   버전 해시를 제거한 기본 이름 (evict 시 경로에 쓰는 값, 예: "recommendations").
+ * @param entryCount 현재 보관된 엔트리 수.
+ * @param keys       현재 보관된 엔트리 키 목록 (evict 가능한 실제 키 — 예: userId).
+ */
+data class CacheInfo(
+    val name: String,
+    val baseName: String,
+    val entryCount: Int,
+    val keys: List<String>,
+)
 
 /**
  * 캐시 무효화·재갱신 오케스트레이터.
@@ -30,16 +46,22 @@ class CacheInvalidationService(
      *
      * @param cacheBaseName 기본 캐시 이름 (예: "recommendations")
      * @param key           무효화할 키 (예: userId)
+     * @return 해석된 캐시 중 **하나라도 실제로 그 키를 보관하고 있었으면** true.
+     *         (어드민 응답이 "evicted" vs "not_found"를 구분하는 근거.)
      */
     fun evict(
         cacheBaseName: String,
         key: String,
-    ) {
+    ): Boolean {
+        var removed = false
         resolveCache(cacheBaseName).forEach { cache ->
-            cache.evict(key)
-            log.info { "[CACHE] evict — cache=${cache.name}, key=$key" }
+            val present = cache.evictIfPresent(key)
+            if (present) removed = true
+            log.info { "[CACHE] evict — cache=${cache.name}, key=$key, removed=$present" }
         }
+        // 분산 전파는 멱등이므로, 이 Pod에 없었더라도 타 Pod를 위해 항상 발행한다.
         publishers.forEach { it.publishEviction(cacheBaseName, key) }
+        return removed
     }
 
     /**
@@ -99,6 +121,24 @@ class CacheInvalidationService(
 
     /** 현재 등록된 모든 캐시 이름을 반환한다 (기본 이름과 버전화된 이름 모두 포함). */
     fun listCacheNames(): List<String> = cacheManager.cacheNames.toList().sorted()
+
+    /**
+     * 등록된 캐시를 **엔트리 키까지 포함**해 반환한다.
+     *
+     * `listCacheNames()`가 캐시 "이름(컨테이너)"만 보여줘 운영자가 이름을 키로 오인하던 문제를 해소한다.
+     * 키 열거를 지원하는 캐시([CacheKeyEnumerable], 예: TwoTierCache)는 실제 키 목록을,
+     * 지원하지 않는 캐시는 빈 목록을 반환한다.
+     */
+    fun listCaches(): List<CacheInfo> =
+        cacheManager.cacheNames.sorted().map { name ->
+            val keys = (cacheManager.getCache(name) as? CacheKeyEnumerable)?.keys()?.sorted() ?: emptyList()
+            CacheInfo(
+                name = name,
+                baseName = name.substringBefore(':'),
+                entryCount = keys.size,
+                keys = keys,
+            )
+        }
 
     private fun resolveCache(cacheBaseName: String): List<org.springframework.cache.Cache> =
         cacheManager.cacheNames

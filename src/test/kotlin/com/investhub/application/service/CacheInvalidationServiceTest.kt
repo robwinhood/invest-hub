@@ -1,15 +1,21 @@
 package com.investhub.application.service
 
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.investhub.adapter.out.cache.MockRedisStore
+import com.investhub.adapter.out.cache.TwoTierCache
 import com.investhub.application.port.output.CacheEventPublisher
 import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.springframework.cache.caffeine.CaffeineCache
 import org.springframework.cache.caffeine.CaffeineCacheManager
+import org.springframework.cache.support.SimpleCacheManager
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 class CacheInvalidationServiceTest : DescribeSpec() {
     init {
@@ -22,6 +28,25 @@ class CacheInvalidationServiceTest : DescribeSpec() {
                     setCaffeine(Caffeine.newBuilder().maximumSize(100))
                 }
             return CacheInvalidationService(caffeineCacheManager, publishers, strategies)
+        }
+
+        // 키 열거(CacheKeyEnumerable)를 지원하는 TwoTierCache로 구성한 서비스.
+        val mapper = jacksonObjectMapper()
+
+        fun buildTwoTierService(
+            cacheName: String = "recommendations:vtest",
+        ): Pair<CacheInvalidationService, TwoTierCache> {
+            val cache =
+                TwoTierCache(
+                    cacheName = cacheName,
+                    l1 = CaffeineCache(cacheName, Caffeine.newBuilder().maximumSize(100).build()),
+                    l2 = MockRedisStore(),
+                    ttlSeconds = 300,
+                    serialize = { mapper.writeValueAsBytes(it) },
+                    deserialize = { mapper.readValue(it, List::class.java) },
+                )
+            val manager = SimpleCacheManager().apply { setCaches(listOf(cache)) }.also { it.initializeCaches() }
+            return CacheInvalidationService(manager, emptyList(), emptyList()) to cache
         }
 
         describe("evict — 특정 키 무효화") {
@@ -129,12 +154,50 @@ class CacheInvalidationServiceTest : DescribeSpec() {
             }
         }
 
+        describe("evict 반환값 — 실제 제거 여부") {
+            it("키가 있었으면 true를 반환한다") {
+                val (service, cache) = buildTwoTierService()
+                cache.put("user-001", listOf("product-a"))
+
+                service.evict("recommendations", "user-001") shouldBe true
+            }
+
+            it("키가 없었으면 false를 반환한다") {
+                val (service, _) = buildTwoTierService()
+
+                service.evict("recommendations", "ghost") shouldBe false
+            }
+        }
+
         describe("listCacheNames — 캐시 목록 조회") {
             it("등록된 캐시 이름 목록을 반환한다") {
                 val service = buildService()
                 val names = service.listCacheNames()
 
                 names shouldNotBe null
+            }
+        }
+
+        describe("listCaches — 엔트리 키 포함 조회") {
+            it("캐시 이름·기본 이름·엔트리 키를 함께 반환한다") {
+                val (service, cache) = buildTwoTierService("recommendations:v7a0fe702")
+                cache.put("user-001", listOf("product-a"))
+                cache.put("user-002", listOf("product-b"))
+
+                val caches = service.listCaches()
+
+                caches.size shouldBe 1
+                caches[0].name shouldBe "recommendations:v7a0fe702"
+                caches[0].baseName shouldBe "recommendations"
+                caches[0].entryCount shouldBe 2
+                caches[0].keys shouldContainExactly listOf("user-001", "user-002")
+            }
+
+            it("키 열거를 지원하지 않는 캐시는 빈 키 목록을 반환한다") {
+                val service = buildService() // CaffeineCacheManager — CacheKeyEnumerable 미구현
+                val caches = service.listCaches()
+
+                caches.forEach { it.keys shouldBe emptyList() }
             }
         }
     }
