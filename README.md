@@ -153,7 +153,7 @@ BUILD SUCCESSFUL
 전체 HTTP 엔드포인트 명세(집계 대시보드·도메인별 리소스·Cache Admin·Health Probe·Actuator)는 별도 문서로 분리했다.
 
 - 📄 **명세 문서** → **[docs/api-reference.md](docs/api-reference.md)**
-- 🧪 **인터랙티브 API 탐색기** (서버 없이 브라우저에서 Try it out) → **[docs/api/](docs/api/index.html)** · GitHub Pages 활성화 시 `https://<owner>.github.io/invest-hub/api/` (설정: `Settings → Pages → Deploy from a branch → /docs`)
+- 🧪 **인터랙티브 API 탐색기** (서버 없이 브라우저에서 Try it out) → **https://robwinhood.github.io/invest-hub/api/** (소스: [docs/api/](docs/api/index.html))
 
 요약: 비즈니스 API는 `X-User-Id` 헤더가 필수이며, 집계 `GET /api/v1/investment/dashboard`는 부분 실패를 200+`status`로, 도메인별 엔드포인트(`/assets`·`/foreign-stocks`·`/recommendations`)는 데이터 속성별 `Cache-Control`과 HTTP 상태 코드로 표현한다. 설계 근거는 [ADR-008](docs/adr/008-aggregate-plus-resource-endpoints.md).
 
