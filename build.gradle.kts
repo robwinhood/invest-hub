@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "com.investhub"
-version = "0.4.7"
+version = "0.4.8"
 
 java {
     toolchain {
