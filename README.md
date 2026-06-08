@@ -89,33 +89,33 @@
 
 ### (3) 성능 및 자원 최적화 — 트래픽 증가·한계 상황 대비
 
-| 설계 요소 | 효과 | 근거 수치 |
-|---|---|---|
-| **병렬 조회** (3소스 동시 호출) | 응답 시간 = `max(계좌, 주식, 추천)` (순차 합산이 아님) | 순차 ~680ms → 병렬 ~400ms |
-| **Virtual Thread** | I/O 대기 중 캐리어 OS 스레드 반납 → 수만 동시 요청을 적은 OS 스레드로 처리 | `spring.threads.virtual.enabled: true` |
-| **Bulkhead 한도 (Little's Law)** | 동시성 상한을 *실측 기반*으로 산정해 과소·과대 차단 모두 방지 | 제휴사 15K TPS × 0.24s ≈ 3,600 → **4,000** / 계좌 1,000 / 추천 2,000 |
-| **글로벌 RateLimiter** | 버스트를 입구에서 즉시 429로 차단 → 큐 적재·GC 압박 차단 | 인스턴스당 **15K TPS**, `timeout 0ms` |
-| **캐시 히트 시 CB·Bulkhead·TL 미소모** | 저실시간 데이터의 자원 점유 최소화 | 추천 L1+L2 5분 TTL |
-| **L2(Mock Redis) 공유 캐시** | 신규 Pod·L1 만료 시에도 추천 엔진 원격 호출을 흡수 → 원본 부하·꼬리 레이턴시 감소 | L1 miss → L2 hit 시 원격 호출 0 |
-| **TimeLimiter 꼬리 레이턴시 상한** | 느린 호출이 SLA를 넘기지 못하도록 강제 | 계좌 2s / 제휴사 3s / 추천 1.5s |
-| **HTTP/2 · GZIP · Tomcat 튜닝 · 관리 포트 분리** | 커넥션 효율·페이로드 축소. 관리 포트 분리는 **보안 격리**(내부 상태 노출 actuator를 공개 포트에서 제외)·**프로브 격리**·장애 중 8081 접근을 모두 노린다 | `max-connections 10K`, 관리 포트 **8081** |
-| **Graceful Shutdown** | 배포·스케일인 시 진행 중 요청 보존 | `server.shutdown: graceful`, 30s |
+| 설계 요소 | 효과 · 근거 |
+|---|---|
+| **병렬 조회**<br><sub>3소스 동시 호출</sub> | 응답 시간 = `max(계좌, 주식, 추천)` (순차 합산이 아님)<br><sub>순차 ~680ms → 병렬 ~400ms</sub> |
+| **Virtual Thread** | I/O 대기 중 캐리어 OS 스레드 반납 → 수만 동시 요청을 적은 OS 스레드로 처리<br><sub>`spring.threads.virtual.enabled: true`</sub> |
+| **Bulkhead 한도**<br><sub>Little's Law</sub> | 동시성 상한을 *실측 기반*으로 산정해 과소·과대 차단 모두 방지<br><sub>제휴사 15K TPS × 0.24s ≈ 3,600 → **4,000** · 계좌 1,000 · 추천 2,000</sub> |
+| **글로벌 RateLimiter** | 버스트를 입구에서 즉시 429로 차단 → 큐 적재·GC 압박 차단<br><sub>인스턴스당 **15K TPS** · `timeout 0ms`</sub> |
+| **캐시 히트 시 CB·Bulkhead·TL 미소모** | 저실시간 데이터의 자원 점유 최소화<br><sub>추천 L1+L2 5분 TTL</sub> |
+| **L2(Mock Redis) 공유 캐시** | 신규 Pod·L1 만료 시에도 추천 엔진 원격 호출을 흡수 → 원본 부하·꼬리 레이턴시 감소<br><sub>L1 miss → L2 hit 시 원격 호출 0</sub> |
+| **TimeLimiter 꼬리 레이턴시 상한** | 느린 호출이 SLA를 넘기지 못하도록 강제<br><sub>계좌 2s · 제휴사 3s · 추천 1.5s</sub> |
+| **HTTP/2 · GZIP · Tomcat 튜닝 · 관리 포트 분리** | 커넥션 효율·페이로드 축소. 관리 포트 분리는 **보안 격리**(내부 상태 노출 actuator를 공개 포트에서 제외)·**프로브 격리**·장애 중 8081 접근을 모두 노린다<br><sub>`max-connections 10K` · 관리 포트 **8081**</sub> |
+| **Graceful Shutdown** | 배포·스케일인 시 진행 중 요청 보존<br><sub>`server.shutdown: graceful` · 30s</sub> |
 
 ### (4) 신뢰성 검증 결과 — 최악 시나리오를 코드로 증명
 
 설계가 "그렇게 동작하길 기대한다"가 아니라 **테스트로 강제·회귀 방지**된다. 총 **133개 테스트 전체 통과**(`./gradlew check-all` → `BUILD SUCCESSFUL`).
 
-| 최악 시나리오 | 검증 내용 | 검증 테스트 |
-|---|---|---|
-| **제휴사 타임아웃/장애** | 나머지 두 섹션은 정상 `SUCCESS`, 실패 섹션만 `FAILURE`로 격리 | `InvestmentDashboardServiceTest` (부분 실패) |
-| **예외 → 사용자 표현 매핑** | `CallNotPermitted→CIRCUIT_OPEN`, `BulkheadFull→RESOURCE_EXHAUSTED`, `Timeout→TIMEOUT` 정확 분류 | `InvestmentDashboardServiceTest` (예외 분류) |
-| **세 소스 동시성** | 세 소스가 각자 **다른 가상 스레드**에서 병렬 호출됨(threadId 수집 검증) | `VirtualThreadIsolationTest` |
-| **어댑터 장애 격리** | 어댑터별 전용 executor 분리·스레드 명명 검증 | `VirtualThreadIsolationTest` |
-| **캐시 정확성** | 히트 시 원격 미호출, 미스 시 호출+적재, 키 독립성 | `CachingResilientAdapterTest`, `TwoTierCacheTest` |
-| **스키마 변경 안전성** | 캐시 대상 클래스 필드 변경 시 키 해시 자동 변경(직렬화 충돌 방지) | `CacheKeyVersionGeneratorTest` |
-| **CB 누락 방지** | 외부 어댑터가 `ResilientAdapter` 미상속 시 **빌드 실패** | `HexagonalArchitectureTest` |
-| **과부하 응답 코드** | RateLimit/Bulkhead→429, CB OPEN→503 (RFC 7807) | `GlobalExceptionHandlerTest`, `CacheAdminControllerTest` |
-| **Cold start 허용성** | 웜업 일부 실패해도 서비스 기동·Liveness 유지 | `WarmupServiceTest`, `DashboardWarmerTest`, `HealthControllerTest` |
+| 최악 시나리오 | 검증 내용 → 테스트 |
+|---|---|
+| **제휴사 타임아웃/장애** | 나머지 두 섹션은 정상 `SUCCESS`, 실패 섹션만 `FAILURE`로 격리<br><sub>→ `InvestmentDashboardServiceTest` (부분 실패)</sub> |
+| **예외 → 사용자 표현 매핑** | `CallNotPermitted→CIRCUIT_OPEN`, `BulkheadFull→RESOURCE_EXHAUSTED`, `Timeout→TIMEOUT` 정확 분류<br><sub>→ `InvestmentDashboardServiceTest` (예외 분류)</sub> |
+| **세 소스 동시성** | 세 소스가 각자 **다른 가상 스레드**에서 병렬 호출됨 (threadId 수집 검증)<br><sub>→ `VirtualThreadIsolationTest`</sub> |
+| **어댑터 장애 격리** | 어댑터별 전용 executor 분리·스레드 명명 검증<br><sub>→ `VirtualThreadIsolationTest`</sub> |
+| **캐시 정확성** | 히트 시 원격 미호출, 미스 시 호출+적재, 키 독립성<br><sub>→ `CachingResilientAdapterTest` · `TwoTierCacheTest`</sub> |
+| **스키마 변경 안전성** | 캐시 대상 클래스 필드 변경 시 키 해시 자동 변경 (직렬화 충돌 방지)<br><sub>→ `CacheKeyVersionGeneratorTest`</sub> |
+| **CB 누락 방지** | 외부 어댑터가 `ResilientAdapter` 미상속 시 **빌드 실패**<br><sub>→ `HexagonalArchitectureTest`</sub> |
+| **과부하 응답 코드** | RateLimit/Bulkhead→429, CB OPEN→503 (RFC 7807)<br><sub>→ `GlobalExceptionHandlerTest` · `CacheAdminControllerTest`</sub> |
+| **Cold start 허용성** | 웜업 일부 실패해도 서비스 기동·Liveness 유지<br><sub>→ `WarmupServiceTest` · `DashboardWarmerTest` · `HealthControllerTest`</sub> |
 
 ```
 $ ./gradlew check-all
